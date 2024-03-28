@@ -46,7 +46,7 @@ def get_data(num_data, lifespan_min=None, lifespan_max=None, unique_lifespans=0)
             # print(index, next)
             # print(line, "\n")
             species, sequence = "_".join(line[0].split("_")[:2]), line[-1]
-            sequence = sequence.replace("X", "").replace("\n", "").replace('"').upper()
+            sequence = sequence.replace("X", "").replace("\n", "").replace('"').replace(" ", "").upper()
             if species in lifespan_mappings: lifespan = lifespan_mappings[species]
             else: continue 
 

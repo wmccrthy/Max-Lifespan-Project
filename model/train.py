@@ -54,9 +54,10 @@ class Sequence_Tokenizer():
                     continue 
                 seq, lifespan = line
                 lifespan = lifespan.replace("\n", "")
-                seq = seq.replace(" ", "").replace('"',"")
+                seq = seq.replace(" ", "").replace('"',"").replace("'", "")
                 min_seq = min(len(seq), min_seq)
                 max_seq = max(len(seq), max_seq)
+                # print(len(seq))
                 tokenized_seq = self.tokenize(seq)
                 seqs.append(tokenized_seq)
                 lifespan_labels.append(float(lifespan))
@@ -91,6 +92,7 @@ class Sequence_Tokenizer():
         self.compile_tokens(cur_token + 'N', vocab)
 
     def tokenize(self, seq):
+        # print(Counter(seq)) #debugging
         return [self.tokens_idx[seq[i:i+self.token_len]] for i in range(0, self.truncate_at+1-self.token_len, self.token_len)]
 
     def decode_token(self, tokenized):
@@ -153,8 +155,8 @@ class Transformer(L.LightningModule):
         self.reduce2 = nn.Linear(tokenized_seq_len * 2, 1)
 
 
+        self.testing_preds = []
         
-
         self.lr = learning_rate
 
     def forward(self, inputs):
@@ -162,18 +164,17 @@ class Transformer(L.LightningModule):
 
         # breakpoint()
 
-        print("Input Shape:", inputs.shape, inputs)
+        # print("Input Shape:", inputs.shape, inputs)
         inputs = self.embedding(inputs) #first embed input
 
-        print("Sequence Embedding Shape:", inputs.shape)
+        # print("Sequence Embedding Shape:", inputs.shape)
         #then, we need to add positional encodings to the embeddings -> sus about this 
         final_embeddings = self.pos_encoder(inputs) 
        
-        # print(final_embeddings)
-        print("Pre-Encoder (Seq Embedding + Pos Encoding) Shape:", final_embeddings.shape)
+        # print("Pre-Encoder (Seq Embedding + Pos Encoding) Shape:", final_embeddings.shape)
         #then, given we are using a pre-implemented transformer model, we just pass the embedded input to our encoder 
         output = self.transformer_encoder(final_embeddings)
-        print("Post-Encoder Shape:", output.shape)
+        # print("Post-Encoder Shape:", output.shape)
         
         #approach 1: put thru linear1 and linear2 layer (outshape of 128 x 1), than transpose output s.t it's shape 1x128, then put thru one more linear layer to reduce to 1x1
         # output = self.linear1(output)
@@ -185,18 +186,22 @@ class Transformer(L.LightningModule):
         # output = self.reduce(output)
         # print("Post Reduction Shape:", output.shape)
 
+
         #approach 2: instead of putting thru linear layers initially, concatenate maxpool2d and avgpool2d of encoder output providing output shape of 1x128, then put thru one linear layer to reduce to 1x1
         max_pool = nn.MaxPool2d((1, self.d_model))
         output_mp = max_pool(output)
-        print("Max Pool Shape:", output_mp.shape)
+        # print("Max Pool Shape:", output_mp.shape)
+
+
         avg_pool = nn.AvgPool2d((1, self.d_model))
         output_ap = avg_pool(output)
-        print("Avg Pool Shape:", output_ap.shape)
+        # print("Avg Pool Shape:", output_ap.shape)
+
         output = torch.cat((output_mp, output_ap), 1).transpose(1, 2)
-        print("MaxPool Concat Avg Pool Shape:", output.shape)
+        # print("MaxPool Concat Avg Pool Shape:", output.shape)
 
         output = self.reduce2(output)
-        print("Post Reduction Shape:", output.shape)
+        # print("Post Reduction Shape:", output.shape)
 
         return output
 
@@ -231,10 +236,13 @@ class Transformer(L.LightningModule):
         output = self.forward(inputs)
         # breakpoint()
         print("Target:", target, "Test Prediction:", output)
-    
+
+        self.testing_preds.append((target, output))
+
         criterion = F.mse_loss(output, target)
         loss = torch.sqrt(criterion)
 
+        print("Loss: ", loss.item())
         # acc = accuracy(output, target, 'multilabel')
         # print("Testing Loss: ", loss.item(), "Testing Accuracy: ", acc)
         return loss
@@ -247,44 +255,59 @@ class Transformer(L.LightningModule):
 SCRIPT
 """
 remote_training_set_path = "/Mounts/rbg-storage1/users/wmccrthy/early_training/arbitrary_100000_training.csv" 
-local_training_path = "/Users/wyattmccarthy/Desktop/MIT Aging Project/Pre-Processing/early_training/arbitrary_100_training.csv"
+remote_testing_set_path = "/Mounts/rbg-storage1/users/wmccrthy/early_training/lifespan_range_0to150_100_training.csv"
+
+local_training_path = "/Users/wyattmccarthy/Desktop/MIT Aging Project/Everything/early_training/arbitrary_100_training.csv"
 # local_training_path = "/Users/wyattmccarthy/Desktop/MIT Aging Project/Pre-Processing/early_training/lifespan_range_6to12_100_training.csv"
 # local_training_path = "/Users/wyattmccarthy/Desktop/MIT Aging Project/Pre-Processing/early_training/lifespan_range_0to20_500_training.csv"
 
 # local_testing_path = "/Users/wyattmccarthy/Desktop/MIT Aging Project/Pre-Processing/early_training/lifespan_range_0to20_unique_50_training.csv"
-local_testing_path = "/Users/wyattmccarthy/Desktop/MIT Aging Project/Pre-Processing/early_training/lifespan_range_0to150_100_training.csv"
+local_testing_path = "/Users/wyattmccarthy/Desktop/MIT Aging Project/Everything/early_training/lifespan_range_0to150_100_training.csv"
 
 # breakpoint()
+"""
+BELOW IS SCRIPT FOR TESTING AND COMPARING VARIOUS APPROACHES TO TRAINING THE MODEL 
+EACH USES A DIFF BASE TOKEN LENGTH WHERE: A TOKEN LENGTH OF 1 HAS A VOCABULARY OF 5 COMPRISED OF EACH NUCLEOTIDE (A,T,G,C,N) N can represent any nucleotide
+                                          A TOKEN LENGTH OF 3 HAS A VOCABULARY OF 125 COMPRISED OF EACH CODON (AAA, ..., NNN) all length-3 permutations of 4 bases (A,T,G,C) and N
+                                          ...
+"""
 
-data = Sequence_Tokenizer(local_training_path, 256, 2)
-test_d = Sequence_Tokenizer(local_testing_path, 256, 2)
+results = {}
 
-# data = Sequence_Tokenizer(local_training_path, 480, 3)
+for i in range(1, 4):
+    data = Sequence_Tokenizer(remote_training_set_path, 1024, i)
+    test_d = Sequence_Tokenizer(remote_testing_set_path, 1024, i)
 
-# print(data.x[0], data.y[0])
-# print(data.tokenized_seq_len)
+    dataset = TensorDataset(data.x, data.y)
+    dataloader = DataLoader(dataset)
 
-dataset = TensorDataset(data.x, data.y)
-dataloader = DataLoader(dataset)
-testset = TensorDataset(test_d.x, test_d.y)
-testloader = DataLoader(testset)
+    testset = TensorDataset(test_d.x, test_d.y)
+    testloader = DataLoader(testset)
 
-# print(dataloader.dataset.__getitem__(0))
-# print(data.emb_dim)
 
-model = Transformer(data.tokenized_seq_len, data.vocab_size, 2,  4, .02)
+    model = Transformer(data.tokenized_seq_len, data.vocab_size, 2,  4, .02)
 
-wandb_logger = WandbLogger(log_model="all", 
-                               project="training-1")
+    wandb_logger = WandbLogger(log_model="all", 
+                                project="training-1")
 
-trainer = L.Trainer(max_epochs = 10, 
-                        logger=wandb_logger) 
-#remember to add configs for using GPUs within 
+    trainer = L.Trainer(max_epochs = 1,
+                            accelerator='gpu',
+                            devices=1,
+                            logger=wandb_logger) 
+    #remember to add configs for using GPUs within 
 
-trainer.fit(model, dataloader)
-print(data.y.mean()) #testing to see if model is just getting stuck at average across all lifespans 
 
-trainer.test(model, testloader)
-print(test_d.y.mean())
+    trainer.fit(model, dataloader)
+    print("Training Data Mean:", data.y.mean()) #testing to see if model is just getting stuck at average across all lifespans 
+
+    trainer.test(model, testloader)
+
+    results[i] = model.testing_preds
+    print("RESULTS FROM TRAINING WITH TOKEN LENGTH:", i)
+    print("Testing Data Mean:", test_d.y.mean())
+    print("Training Data Mean:", data.y.mean())
+
+for i in results:
+    print("Token Length", i, "Testing Results:", results[i])
 
 

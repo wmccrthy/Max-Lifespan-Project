@@ -34,34 +34,70 @@ cumulative_set_trimmed_path = "/Mounts/rbg-storage1/users/wmccrthy/cumulativeTOG
 
 """
 GET LENGTH DISTRIBUTION ACROSS ALL TOGA ORTHOLOGS (REGARDLESS OF TYPE)
+    - distinguish between max/min length for regulatory and non-regulatory orthologs 
 """
 def get_cumulative_length_distribution():
     freqs = {}
-    max_len = 0
+
+    #build set of (regulatory) transcription factors s.t we can differentiate between max/min length for regulatory and non-regulatory orthologs 
+    transciption_factor_path = "/Mounts/rbg-storage1/users/wmccrthy/transcription_factors.txt"
+    tf_set = set()
+    with open(transciption_factor_path) as read_from:
+        for line in read_from:
+            line = line.split("\t")
+            gene_symbol = line[0]
+            tf_set.add(gene_symbol)
+            
+    reg_max_len, reg_min_len, reg_avg = 0, float('inf'), 0
+    non_max_len, non_min_len, non_avg = 0, float('inf'), 0
+    total_reg = 0
+    total_non = 0
+
     with open(cumulative_set_trimmed_path) as read_from:
         for line in read_from:
             line = line.split(",")
+
             if line[0] == 'organism' or len(line) < 9: continue 
             seq = line[-1] 
             trimmed_seq = seq.replace("\n", "").replace(" ", "").replace("X", "").replace("-", "")
-            if "-" in trimmed_seq: print(seq)
 
-            length = len(trimmed_seq)
-            max_len = max(length, max_len)
+            # if "-" in trimmed_seq: print(seq)
+            gene_symbol = line[1].split(".")[1]
+
+            if gene_symbol in tf_set: #is regulatory ortholog
+                length = len(trimmed_seq)
+                reg_max_len = max(length, reg_max_len)
+                reg_min_len = min(length, reg_min_len)
+                reg_avg += length 
+                total_reg += 1
+            else:
+                length = len(trimmed_seq)
+                non_max_len = max(length, non_max_len)
+                non_min_len = min(length, non_min_len)
+                non_avg += length 
+                total_non += 1
             
-
             if length in freqs: freqs[length] += 1
             else: freqs[length] = 1
+    reg_avg /= total_reg
+    non_avg /= total_non
 
     #now we have length:# of sequences w length pairs and want to plot histogram 
     fig = plt.figure()
     grph = fig.add_subplot()
-    grph.hist(freqs, range=(0, max_len))
+    grph.hist(freqs, range=(0, max(reg_max_len, non_max_len)))
     grph.set_title("TOGA Cumulative Sequence Length Distribution")
     grph.set_xlabel("Sequence Length")
     grph.set_ylabel("Frequency")
     plt.show()
     fig.savefig("cumulative_length_dist.png")
+
+
+    with open("cumulative_seq_lengths.csv", "w") as write_to:
+        writer = csv.writer(write_to)
+        writer.writerow(['ortholog type', 'max seq length', 'min seq length', 'avg seq length'])
+        writer.writerow(['regulatory', reg_max_len, reg_min_len, reg_avg])
+        writer.writerow(['non-regulatory', non_max_len, non_min_len, non_avg])
     return 
 
 
@@ -207,7 +243,7 @@ def get_pairwise_alignment(gene_type_dataset_path):
     return avg_alignment[0]/avg_alignment[1]
 
 """
-GET TOTAL SEQUENCE ALIGNMENT SIMILARITY ACROSS SEQUENCES OF A GIVEN GENE TYPE (RETURNS ALIGNMENT SCORE FOR ALL SEQUENCES ALIGNED)
+GET TOTAL SEQUENCE ALIGNMENT SIMILARITY (self-proclaimed 'wyatt similarity measure') ACROSS SEQUENCES OF A GIVEN GENE TYPE (RETURNS ALIGNMENT SCORE FOR ALL SEQUENCES ALIGNED)
 """
 def get_full_alignment(gene_type_dataset_path):
     trimmed_name = gene_type_dataset_path.split("/")[-1][:-4]
@@ -312,6 +348,11 @@ def get_all_full_alignments():
             avg_sim = w_alignments[gene_type_file]
             writer.writerow([gene_type, avg_sim])
 
+
+
+
+
+
 """
 HELPER METHODS
 """
@@ -373,7 +414,7 @@ def alignment_score(sequences):
         #use a measure of avg distance from perfectly even distribution (.25)
         avg_dist = sum([abs(i - 0.25) for i in dist.values()])/4
         total_avg_dist += avg_dist
-        # print("Average Distance from Perfectly Dissimilar Base Distribution:", avg_dist, dist, "\n")
+        # print("Average Distance from Perfectly Dissimilar Base Distribution:", avg_dist, dist, "Column", i, "\n")
 
     # print("total avg dist from dissimilarity:", total_avg_dist/len(sequences[0])) 
 

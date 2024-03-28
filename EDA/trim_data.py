@@ -79,7 +79,70 @@ def remove_trimmings():
             num_rem += 1
             os.system(f"rm -rf {file_path}")
     print(num_rem)
+
+
+
+"""
+ADDS LIFESPAN DATA FOR 39 SPECIES WHO WERE PREVIOUSLY MISSING LIFESPANS TO TRIMMED REGULATORY GENE SETS 
+one-time use 
+"""
+def update_missing_lifespans():
+    #create lifespan dict s.t we can add lifespan column to each row 
+    lifespan_path = '/Mounts/rbg-storage1/users/wmccrthy/lifespan_data.csv'
+    lifespan_mappings = {}
+    with open(f'{lifespan_path}') as file:
+        for line in file:
+            line = line.strip().split(",")
+            organism = line[0]
+            lifespan = line[1]
+            lifespan_mappings[organism] = lifespan
+
+    updated_species = set() #for testing purposes | to ensure we are updating expected lifespans 
+
+    #iterate thru all un-updated sets
+    for file in os.listdir(gene_datasets_path):
+
+        if "updated" in file: continue #to ensure we don't infinitely loop as files are written to this directory throughout loop 
+
+        file_path = gene_datasets_path + file 
+        trimmed_file_path = "/".join(file_path.split("/")[:-1]) + "/" + "".join(file.split(".")[:-1]) + "_updated_trimmed.csv"
+        # print(trimmed_file_path)
+        with open(trimmed_file_path, "w") as write_to:
+            writer = csv.writer(write_to)
+            writer.writerow(['organism','max_lifespan', 'gene_id','orthologType','chromosome','start','end','direction (+/-)','intactness','sequence'])
+            with open(file_path) as read_from:
+                for line in read_from:
+                    line = line.split(",")
+                    if len(line) < 10: continue 
+                    if line[0] == 'organism': continue 
+                    species_name = "_".join(line[0].split("_")[:2])
+                    species_lifespan = lifespan_mappings[species_name]
+                    if line[1] == 'Unknown' or line[1] == 'Not Established': 
+                        line[1] = species_lifespan 
+                        if species_lifespan != 'Unknown': updated_species.add(species_name)
+                    writer.writerow(line)
+            os.system(f"rm -rf {file_path}")
+
+    print(len(updated_species), updated_species)
+
+"""
+renames regulatory sets w updated lifespan data from "xxx_updated_trimmed.csv" to "xxx_trimmed.csv" for compatability w prior scripts 
+"""
+def rename_updated():
+    for file in os.listdir(gene_datasets_path):
+        file_path = gene_datasets_path + file
+        if "trimmed_updated_trimmed" in file or "valid_trimmed" in file: #only files we care abt 
+            new_name = "_".join(file.split("_")[:2])
+            new_name += "_valid_trimmed.csv"
+            print("renaming", file, "to", new_name, "\n")
+            new_path = gene_datasets_path + new_name
+            os.system(f"mv {file_path} {new_path}")
+        else: 
+            #get rid of redundant/old files 
+            os.system(f"rm -rf {file_path}")
+            print(f"removing {file}")
     
+
 if __name__ == "__main__":
     args = sys.argv
     print(args)

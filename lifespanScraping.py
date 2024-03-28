@@ -13,6 +13,7 @@
 #           WRITE OUT ENTRY TO TABLE OF FORM: SPECIES | MAX_LIFESPAN | SOURCE 
 
 from urllib.request import urlopen
+import csv 
 
 # METHOD THAT SCRAPES MAX LIFESPAN OF GIVEN SPECIES (SCIENTIFIC NAME) FROM AnAge Database 
 def scrape_max_lifespan(species):
@@ -47,7 +48,94 @@ def scrape_max_lifespan(species):
 
     return [float(lifespan), source]
 
+#scrapes Animal Diversity Web for longevity information given a species 
+def scrape_adw(species):
+    species_url = f"https://animaldiversity.org/accounts/{species}"
+    try: species_page =  urlopen(species_url)
+    except: 
+        print("invalid URL")
+        return [None, None]
 
+    html_bytes = species_page.read()
+    parseable_html = html_bytes.decode('utf-8')
+
+    start, end = parseable_html.find("Range lifespan"), parseable_html.find("years")
+    # print(parseable_html[start:start+100])
+    scraped_lifespan = pull_out_lifespan(parseable_html[start:start+100])
+    return [scraped_lifespan, species_url]
+
+
+"""
+GIVEN HTML STRING, pulls out highest present integer (corresponding to lifespan)
+Dependent on couple cases:
+    - if 'months' in string, convert highest int to years 
+    - if male/female in string, ...unsure 
+"""
+def pull_out_lifespan(html_string):
+    months = True if 'month' in html_string else False
+    html_string = html_string.split(" ")
+    for i in range(len(html_string)):
+        html_string[i] = strip_non_numeric(html_string[i])
+    html_string = [i for i in html_string if len(i) > 0]
+    # print(html_string)
+    if len(html_string) > 0: 
+        lifespan_val = max([float(i) for i in html_string])
+        if months: lifespan_val /= 12 
+    else: return None 
+
+    return round(lifespan_val, 1)
+
+
+def strip_non_numeric(string):
+    new = ""
+    if new.isalpha(): return ''
+    
+    for c in string: 
+        if c.isdigit() or c == '.': new += c
+    return new 
+        
+
+
+lifespan_data = "/Users/wyattmccarthy/Desktop/MIT Aging Project/Everything/EDA/lifespan_data.csv"
+"""
+Updates missing lifespan data via ADW database info 
+
+total_missing = 0
+newly_retrieved = 0 
+with open("lifespan_data_updated.csv", "w") as write_to:
+    writer = csv.writer(write_to)
+    writer.writerow(['Species', 'Lifespan', 'Source'])
+    with open(lifespan_data) as read_from:
+        for line in read_from:
+            line = line.split(",")
+            if line[1] == "Unknown" or line[1] == "Not Established":
+                lifespan, source = scrape_adw(line[0])
+                if lifespan == None: lifespan == "Unknown"
+                # print(line[0], lifespan, source)
+                line = [line[0], lifespan, source]
+                if lifespan: newly_retrieved += 1
+                total_missing += 1
+            writer.writerow(line)
+        # print("Recovered", newly_retrieved, "of", total_missing, "Missing Lifespans")
+"""
+
+
+"""
+gets rid of stupid formatting in lifespan csv (newlines, quotation marks, etc)
+"""
+with open(lifespan_data, "w") as write_to:
+    writer = csv.writer(write_to)
+    with open("/Users/wyattmccarthy/Desktop/MIT Aging Project/Everything/lifespan_data_updated.csv") as read_from:
+        for line in read_from:
+            line = line.replace('"', "").replace("\n", "")
+            line = line.split(',')
+            if len(line) < 3: continue 
+            if len(line[1]) == 0: line[1] = 'Unknown'
+            writer.writerow(line)
+            
+
+
+#SCRIPT BELOW ITERATES THRU LIFESPAN CSV AND ATTEMPTS TO POPULATE 
 
 
 

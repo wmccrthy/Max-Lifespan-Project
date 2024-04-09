@@ -85,11 +85,9 @@ def embed_tokenized(tokenized_seqs, lifespans, file, parent_path, isolated=False
 
 """
 GETS EMBEDDINGS FOR EACH TRANSCRIPTION_FACTOR/GENE SET 
-    - builds map of gene -> max seq length in set
-    - initialize map of gene -> seq embeddings 
-    - tokenized_seqs = prepare4DNABERT_S with parameters: (gene set file path, max_length_map[gene])
-        - collapse w mean pooling s.t they are all 1 x 768 
-    - embeddings[gene] = embed_tokenized(tokenized_seqs)
+    - iterates through gene sets
+    - tokenizes all sequences in a set (calling prepare4DNABERT_S method)
+    - embeds tokenized sequences and writes out to csv file (calling embed_tokenized method)
 """
 def get_embeddings(dir=None):
     if not dir: to_search = regulatory_sets_path
@@ -110,6 +108,9 @@ def get_embeddings(dir=None):
         embed_tokenized(tokenized, lifespans, file, to_search)
     return 
 
+"""
+PERFORMS ABOVE DESCRIBED PROCESS ON A SINGLE, GIVEN FILE (RATHER THAN ITERATING THRU DIRECTORY WITH ALL DATASETS)
+"""
 def get_file_embeddings(file):
     print("Tokenizing", file)
     tokenized, lifespans = prepare4DNABERT_S(file)

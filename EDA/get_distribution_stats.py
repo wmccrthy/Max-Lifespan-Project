@@ -22,15 +22,17 @@ METHODS:
 """
 import matplotlib.pyplot as plt
 import numpy as np
-import sys, os, csv 
+import sys, os, csv, math
 from collections import Counter
 from Bio.Align import PairwiseAligner, Alignment
+from scipy import stats
+
 
 
 
 local_cumulative_set_path = "/Users/wyattmccarthy/Desktop/MIT Aging Project/Pre-Processing/cumulativeTOGAset.csv"
-cumulative_set_untrimmed_path = "/Mounts/rbg-storage1/users/wmccrthy/cumulativeTOGAset.csv"
-cumulative_set_trimmed_path = "/Mounts/rbg-storage1/users/wmccrthy/cumulativeTOGAset_trimmed.csv"
+cumulative_set_untrimmed_path = "/data/rsg/chemistry/wmccrthy/Everything/cumulativeTOGAset.csv"
+cumulative_set_trimmed_path = "/data/rsg/chemistry/wmccrthy/Everything/cumulativeTOGAset_trimmed.csv"
 
 """
 GET LENGTH DISTRIBUTION ACROSS ALL TOGA ORTHOLOGS (REGARDLESS OF TYPE)
@@ -40,7 +42,7 @@ def get_cumulative_length_distribution():
     freqs = {}
 
     #build set of (regulatory) transcription factors s.t we can differentiate between max/min length for regulatory and non-regulatory orthologs 
-    transciption_factor_path = "/Mounts/rbg-storage1/users/wmccrthy/transcription_factors.txt"
+    transciption_factor_path = "/data/rsg/chemistry/wmccrthy/Everything/transcription_factors.txt"
     tf_set = set()
     with open(transciption_factor_path) as read_from:
         for line in read_from:
@@ -135,7 +137,7 @@ def get_length_distribution(gene_type_dataset_path):
     plt.close(fig)
     return max_len
 
-#test path: /Mounts/rbg-storage1/users/wmccrthy/gene_datasets/regulatory/TCF15_orthologs.csv
+#test path: /data/rsg/chemistry/wmccrthy/Everything/gene_datasets/regulatory/TCF15_orthologs.csv
 
 """
 GET SEQUENCE SIMILARITY (BY COSINE SIMILARITY) ACROSS SEQUENCES OF A CERTAIN GENE TYPE 
@@ -272,11 +274,11 @@ def get_full_alignment(gene_type_dataset_path):
     
     # total_alignment = Alignment(seqs)
     # print(total_alignment.counts())
-    total_alignment = alignment_score(seqs)
+    total_alignment = alignment_score(seqs)[0]
     return total_alignment
 
 
-regulatory_orthologs_path = "/Mounts/rbg-storage1/users/wmccrthy/gene_datasets/regulatory/"
+regulatory_orthologs_path = "/data/rsg/chemistry/wmccrthy/Everything/gene_datasets/regulatory/"
 def get_all_similarity():
     """
     FOR EACH FILE IN REGULATORY_PATH:
@@ -391,8 +393,12 @@ METHOD THAT ITERATES OVER COLUMNS OF BASICALLY ALIGNED SEQUENCES (list of sequen
 AND COMPUTES DISTRIBUTION AT EACH POSITION 
 RETURNED SCORE IS AVERAGE OF DISTRIBUTION ACROSS ALL POSITIONS 
 """
-def alignment_score(sequences):
+
+def alignment_score(sequences, return_chi = False):
     total_avg_dist = 0
+    total_chi_squared = 0 #computes chi squared sum over sequences 
+    total_obs = 0
+    cols_considered = 0 #counts # of positions in sequence considered s.t 'wyatt similarity' is more accurate (divides by # of cols considered in count as opposed to len of sequence | sometimes cols are skipped bc of gaps, w.t being said, perhaps the loss of 'wyatt similarity' incurred by gaps is a valid penalty)
     for i in range(len(sequences[0])):
         #for each column (aligned pos), get dist of bases 
         dist = {'A': 0, 'T':0, 'C':0, 'G': 0}
@@ -401,24 +407,59 @@ def alignment_score(sequences):
             if sequences[j][i] in dist: 
                 dist[sequences[j][i]] += 1
                 total += 1
-        if total < 50: #too small a sample size from which to judge 
-            # print(i, j, len(sequences))
-            continue 
-            
+
+        """WAIVE TO SEE IF CAUSING GAPS IN ANALYZE_MULTIPLE_BINS DATA (STILL WANT TO KNO SIMILARITY SCORE W BINS W LOW SAMPLE SIZE"""
+        if total == 0: continue
+        # if total < 50: #too small a sample size from which to judge (indicates there are less than 50 sequences w valid nucleotides in column i)
+        #     # print(i, j, len(sequences))
+        #     continue 
+
+        cols_considered += 1
         # print(dist)
+        total_obs += total 
+
+        chi_expected = total / 4
+        """MIGHT USE LATER ON"""
+        chi_squared = sum([((i-chi_expected)**2)/chi_expected for i in dist.values()]) #chi_square value of the column
+        total_chi_squared += chi_squared #sum the column into chi_squared value for sequence set 
+        
+
         dist = {i:dist[i]/total for i in dist}
+    
 
         # if i < 3: print(dist) #testing to ensure that (for the most part) sequences begin w ATG, s.t aligning them from their start coordinates is valid 
         
         #perfectly dissimilar distribution wud see A, T, G, and C each having dist frequency of .25 here, thus, to garner an idea of similarity (where more similar indicates certain bases appear much more freq than others)
         #use a measure of avg distance from perfectly even distribution (.25)
         avg_dist = sum([abs(i - 0.25) for i in dist.values()])/4
+
+
         total_avg_dist += avg_dist
         # print("Average Distance from Perfectly Dissimilar Base Distribution:", avg_dist, dist, "Column", i, "\n")
 
     # print("total avg dist from dissimilarity:", total_avg_dist/len(sequences[0])) 
 
     #keep in mind range of 'score' here is from 0 - .375 where .375 corresponds to NO VARIABILITY  
+
+    degree_freedom = len(sequences[0]) * 3 #degree of freedom is (# of columns) * (4-1), given 4 separate nucleotides
+
+    #divide chi_square by #of sequencesto account for large sample size
+    total_seq = len(sequences)
+
+    # normalizer = int(str(total_seq)[0] + '0'*(len(str(total_seq))-2))
+    # total_chi_squared /= normalizer
+    # print("sample size:", total_seq, "normalized by:", normalizer)
+
+    cramers_v = math.sqrt((total_chi_squared)/((total_obs+1) * 3)) #cramers v = sqrt(chi_square/# of samples x min(rows, cols)-1) |
+
+    #or use bonferroni correction, where we adjust the alpha value (bonferroni_corrected_alpha = alpha / n where n is # of tests, in our case i believe this equates to # of sequences in set) 
+    #as opposed to normalizing chi square value 
+    significance_threshold = .05 / len(sequences[0])
+
+
+    # if return_chi: return (total_chi_squared, stats.chi2.ppf(1-significance_threshold, degree_freedom), cramers_v)
+    if return_chi: return cramers_v #for now, just return cramers_v bc chi squared is wayyyyyy too blown up 
+
     return total_avg_dist/len(sequences[0])
         
 

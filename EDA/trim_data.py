@@ -22,9 +22,9 @@ BROAD SCRIPT FOR THE PURPOSE OF TRIMMING DATA
 import os, csv, sys
 from collections import Counter
 
-cumulative_untrimmed_path = "/Mounts/rbg-storage1/users/wmccrthy/cumulativeTOGAset.csv"
+cumulative_untrimmed_path = "/data/rsg/chemistry/wmccrthy/Everything/cumulativeTOGAset.csv"
 
-gene_datasets_path = "/Mounts/rbg-storage1/users/wmccrthy/gene_datasets/regulatory/"
+gene_datasets_path = "/data/rsg/chemistry/wmccrthy/Everything/gene_datasets/regulatory/"
 
 
 invalid_intactness = set(["lost", "missing", "paralogous projection"])
@@ -49,6 +49,10 @@ def trim_gene_sets():
         file_path = gene_datasets_path + file 
         trimmed_file_path = "/".join(file_path.split("/")[:-1]) + "/" + "".join(file.split(".")[:-1]) + "_trimmed.csv"
         # print(trimmed_file_path)
+
+        #don't execute on newly created 'trimmed' files 
+        if 'trimmed' in file: continue
+
         with open(trimmed_file_path, "w") as write_to:
             writer = csv.writer(write_to)
             writer.writerow(['organism','max_lifespan', 'gene_id','orthologType','chromosome','start','end','direction (+/-)','intactness','sequence'])
@@ -62,6 +66,7 @@ def trim_gene_sets():
         
                     writer.writerow(line)
         write_to.close()
+        os.system(f'rm -rf {file_path}')
 
 def ensure_gene():
     gene_types = set()
@@ -88,7 +93,7 @@ one-time use
 """
 def update_missing_lifespans():
     #create lifespan dict s.t we can add lifespan column to each row 
-    lifespan_path = '/Mounts/rbg-storage1/users/wmccrthy/lifespan_data.csv'
+    lifespan_path = '/data/rsg/chemistry/wmccrthy/Everything/lifespan_data.csv'
     lifespan_mappings = {}
     with open(f'{lifespan_path}') as file:
         for line in file:
@@ -142,6 +147,14 @@ def rename_updated():
             os.system(f"rm -rf {file_path}")
             print(f"removing {file}")
     
+
+def remove_scrap_embeddings():
+    for file in os.listdir(gene_datasets_path):
+        file_path = gene_datasets_path + file
+        if "embeddings" in file:
+            print("removing:", file)
+            os.system(f'rm -rf {file_path}')
+        else: continue 
 
 if __name__ == "__main__":
     args = sys.argv

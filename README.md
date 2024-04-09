@@ -27,6 +27,10 @@ DIRECTORY: *EDA*
 
 - Directory containing some collected data and various scripts for exploratory data analysis
 - CONTENTS:
+    - embeddings_visuals (folder)
+        - folder containing embedding visualizations for a sample of our gene datasets. 
+    - get_regulatory_embeddings.py
+        - collection of methods for embedding (using DNABERT-S) our sequence data then performing PCA and K-means clustering on embeddings for visualization or statistical analysis.
     - gene_type_analysis.py
         - collection of methods for evaluating sets of orthologs that code for regulatory genes
         - main focus is analyzing sequence length distribution and nucleotide composition similarity across orthologs from the same set

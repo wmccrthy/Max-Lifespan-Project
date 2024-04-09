@@ -27,6 +27,7 @@ DIRECTORY: *EDA*
 
 - Directory containing some collected data and various scripts for exploratory data analysis
 - CONTENTS:
+    - various csv files containing statistical data on our gene datasets. 
     - embeddings_visuals (folder)
         - folder containing embedding visualizations for a sample of our gene datasets. 
     - get_regulatory_embeddings.py

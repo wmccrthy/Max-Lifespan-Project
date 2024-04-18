@@ -1,0 +1,16 @@
+family,median max lifespan,MAD,outlying species,outlying lifespan
+Gliridae,6.2,0.8000000000000003,Glis_glis,8.7
+Cricetidae,5.25,1.2500000000000002,Neotoma_lepida,10.5
+Cricetidae,5.25,1.2500000000000002,Ondatra_zibethicus,10.0
+Sciuridae,14.4,2.9499999999999993,Sciurus_carolinensis,23.6
+Canidae,17.0,0.6999999999999993,Vulpes_vulpes,21.3
+Canidae,17.0,0.6999999999999993,Canis_lupus,20.6
+Procyonidae,24.0,3.0,Potos_flavus,38.4
+Cheirogaleidae,18.2,0.8000000000000007,Cheirogaleus_medius,29.0
+Equidae,36.0,2.799999999999997,Equus_asinus,47.0
+Bovidae,21.95,3.9499999999999993,Bubalus_bubalis,34.9
+Bovidae,21.95,3.9499999999999993,Damaliscus_lunatus,35.0
+Cervidae,22.0,2.1999999999999993,Cervus_elaphus,31.5
+Delphinidae,46.5,8.8,Orcinus_orca,90.0
+Balaenidae,70.0,3.0,Balaena_mysticetus,211.0
+Pteropodidae,20.6,3.0999999999999996,Pteropus_giganteus,44.0

@@ -1,0 +1,9 @@
+order,median lifespan,IQR,outlying species,outlying max lifespan
+Rodentia,7.3,8.0,Hystrix_cristata,28.0
+Rodentia,7.3,8.0,Heterocephalus_glaber,31.0
+Rodentia,7.3,8.0,Coendou_prehensilis,26.6
+Ruminantia,22.0,8.599999999999998,Giraffa_camelopardalis,39.5
+Whippomorpha,49.5,38.675,Balaena_mysticetus,211.0
+Chiroptera,17.0,10.0,Pteropus_giganteus,44.0
+Chiroptera,17.0,10.0,Myotis_myotis,37.1
+Chiroptera,17.0,10.0,Myotis_brandtii,41.0

@@ -17,8 +17,8 @@ regulatory_sets_path = "/data/rsg/chemistry/wmccrthy/Everything/gene_datasets/re
 DNABERT_S_path_local = "/Users/wyattmccarthy/Desktop/MIT Aging Project/Everything/early_training/DNABERT-S"
 DNABERT_S_path = "/data/rsg/chemistry/wmccrthy/Everything/DNABERT-S/"
 
-embedder = AutoModel.from_pretrained(DNABERT_S_path_local, trust_remote_code=True)
-tokenizer = AutoTokenizer.from_pretrained(DNABERT_S_path_local, trust_remote_code=True)
+embedder = AutoModel.from_pretrained(DNABERT_S_path, trust_remote_code=True)
+tokenizer = AutoTokenizer.from_pretrained(DNABERT_S_path, trust_remote_code=True)
 
 
 """
@@ -78,7 +78,8 @@ def embed_tokenized(tokenized_seqs, lifespans, file, parent_path, isolated=False
             #alt approach is to concatenate mean and max pool then collapse 
             s = [i.item() for i in s_embedding] + [l]
             writer.writerow(s)
-
+    write_to.close()
+    return 
 # test = prepare4DNABERT_S("/Users/wyattmccarthy/Desktop/MIT Aging Project/Everything/early_training/training_data/arbitrary_100_training.csv")[0]
 # embed_tokenized(test)
 
@@ -118,20 +119,20 @@ def get_file_embeddings(file):
     embed_tokenized(tokenized, lifespans, file, "", True)
 
 
-
-
 """
 FOR EACH EMBEDDING FILE IN GENE_DATASETS, PERFORM PCA AND K-MEANS CLUSTERING ON EMBEDDINGS 
-THEN, FOR EACH CLUSTER COMPUTE MEAN, STD DEVIATION, Z TEST SCORE AND CORRESPONDING STATISTICAL SIGNIFICANCE 
+THEN, FOR EACH CLUSTER COMPUTE MEAN, STD DEVIATION, Z TEST SCORE, CORRESPONDING STATISTICAL SIGNIFICANCE and MODIFIED Z SCORE 
 """
 def cluster_all_embeddings(dir = None):
     if dir: to_search = dir 
     else: to_search = regulatory_sets_path
     num_analyzed = 0
     error_files = []
+    few_sample_files = []
+
     with open("regulatory_sets_cluster_data.csv", "w") as write_to:
         writer = csv.writer(write_to)
-        writer.writerow(['gene type', 'set mean lifespan', 'cluster', 'cluster mean lifespan', 'cluster std dev', '# points in cluster', 'z-score', 'statistical significance'])
+        writer.writerow(['gene type', 'set mean lifespan', 'set std dev', 'set iqr bounds', 'cluster', 'cluster mean lifespan', 'cluster std dev', 'cluster iqr', 'cluster iqr bounds', '#points in cluster', '#species in cluster', 'modified z-score', 'statistical significance'])
         for file in os.listdir(to_search):
             gene_type = file.split("_")[0]
             if 'embedding' in file:
@@ -149,48 +150,71 @@ def cluster_all_embeddings(dir = None):
                 to_read.close()
                 try:
                     embeddings = numpy.array(embeddings)
+                    labels = numpy.array(labels)
                 except:
-                    print(f'error with embeddings for {file}')
+                    print(f'error with embeddings for {file}\n')
                     error_files.append(file)
+                    continue 
+
+                #if less than 5 sequences in gene set, skip over, as statistical methods are not robust w so few samples (prob true for a greater threshold than 5 but for sake of avoiding errors we use 5...)
+                if len(embeddings) < 5:
+                    print(f'too few samples ({len(embeddings)}) in', file, '\n')
+                    few_sample_files.append((file, len(embeddings)))
                     continue 
 
                 # reduce to 3 dimensions 
                 pca = PCA(n_components=3)
                 reduced = numpy.ascontiguousarray(pca.fit_transform(embeddings))
 
-                #try k means clustering on reduced 
                 #approach: cluster w k ranging from 2-5, take max silhouette score across each k and then visualize k-means w highest scoring k 
                 max_silhouette = 0
                 optimal_k = 0
                 for i in range(2,6):
-                    k_means = KMeans(i)
-                    k_means.fit(reduced)
-                    silhouette_avg = silhouette_score(reduced, k_means.labels_)
-                    if silhouette_avg > max_silhouette: 
-                        optimal_k = i
-                        max_silhouette = silhouette_avg
+                    try:
+                        k_means = KMeans(i)
+                        k_means.fit(reduced)
+                        silhouette_avg = silhouette_score(reduced, k_means.labels_)
+                        if silhouette_avg > max_silhouette: 
+                            optimal_k = i
+                            max_silhouette = silhouette_avg
+                    except:
+                        print(f'error with silhouette analysis for {file}\n')
+                        optimal_k = 3
+                        error_files.append(file)
+                        break
 
                 k_means = KMeans(optimal_k)
                 k_means.fit(reduced)
 
-                #for each cluster, get avg lifespan, std deviation and z score 
+                #compute mean, std dev, median, MAD, and IQR for entire set 
+                cum_mean, cum_std  = labels.mean(), labels.std()
+                cum_median, cum_MAD = numpy.median(labels), stats.median_abs_deviation(labels)
+                q1, q3 = numpy.percentile(labels, 25), numpy.percentile(labels, 75)
+                iqr = q3 - q1
+                upper, lower = q3 + 1.5*iqr, q1 - 1.5*iqr 
                 for label in range(optimal_k):
-                    cluster_lifespans, all_lifespans = [], []
+                    #for each cluster, get avg lifespan, std deviation, z score, modified z score, iqr, and p value  
+                    cluster_lifespans = []
                     for i in range(len(k_means.labels_)):
                         if k_means.labels_[i] == label: cluster_lifespans.append(labels[i])
-                        all_lifespans.append(labels[i])
-                    cluster_lifespans, all_lifespans = numpy.array(cluster_lifespans), numpy.array(all_lifespans)
-                    cluster_mean, cluster_std = cluster_lifespans.mean(), cluster_lifespans.std()
-                    cum_mean, cum_std  = all_lifespans.mean(), all_lifespans.std()
-                    z_score = (cluster_mean - cum_mean)/(cum_std/math.sqrt(len(cluster_lifespans)))
-                    p_value = stats.norm.sf(abs(z_score))
-                    #want to write out gene set, cluster label (best way to denote this?), lifespans.max, lifespans.min, lifespans.mean, lifespans.median
-                    writer.writerow([gene_type, cum_mean, f'cluster{label}',round(cluster_mean, 1), round(cluster_std), len(cluster_lifespans), round(z_score, 2), round(1-p_value, 3)])
+                    cluster_lifespans = numpy.array(cluster_lifespans)
+                    cluster_mean, cluster_std, cluster_median = cluster_lifespans.mean(), cluster_lifespans.std(), numpy.median(cluster_lifespans)
+                    cluster_q1, cluster_q3 = numpy.percentile(cluster_lifespans, 25), numpy.percentile(cluster_lifespans, 75)
+                    cluster_iqr = cluster_q3 - cluster_q1
+                    z_score = (cluster_mean - cum_mean)/(cum_std/math.sqrt(len(cluster_lifespans))) #z-score appears to be blowing up bc of non-normal distributions, so waive from analysis for now
+                    modified_z_score = .6745*(cluster_median - cum_median)/cum_MAD
+                    p_value = stats.norm.sf(abs(modified_z_score))
+                    #want to write out gene set, gene set mean, gene set IQR bounds, cluster label, cluster mean lifespan, cluster std dev, cluster iqr, cluster iqr boudns, # points in cluster, modified z score, stat sig
+                    writer.writerow([gene_type, cum_mean, cum_std, f'{round(q1)}-{round(q3)}', f'cluster{label}',round(cluster_mean, 1), round(cluster_std), cluster_iqr, f'{round(cluster_q1)}-{round(cluster_q3)}', len(cluster_lifespans), len(set(cluster_lifespans)), round(modified_z_score, 2), round(p_value, 4)])
     
     print("Errors had on the following:")
     for i in error_files: print(i)
+    print("Too few samples in the following:")
+    for i in few_sample_files: print(i)
 
     return 
+
+
 
 """
 GIVEN AN EMBEDDING FILE, PERFORM PCA AND K-MEANS CLUSTERING ON EMBEDDINGS THEN VISUALIZE OUTPUT w Matplot
@@ -249,12 +273,13 @@ def visualize_embeddings(embedding_file, is2d = False):
         for i in range(len(k_means.labels_)):
             if k_means.labels_[i] == label: lifespans.append(labels[i])
         lifespans = numpy.array(lifespans)
+
         if not is2d: grph.text(k_means.cluster_centers_[label][0], k_means.cluster_centers_[label][1], k_means.cluster_centers_[label][2], f'{round(lifespans.mean())}|{round(lifespans.std())}', bbox=dict(facecolor='white', alpha=0.4)) #for 3d
-        else: grph.text(k_means.cluster_centers_[label][0], k_means.cluster_centers_[label][1], f'{round(lifespans.mean())}|{round(numpy.std(lifespans))}', bbox=dict(facecolor='white', alpha=0.5)) #for 2d
+        else: grph.text(k_means.cluster_centers_[label][0], k_means.cluster_centers_[label][1], f'{round(lifespans.mean())}|{round(lifespans.std())}', bbox=dict(facecolor='white', alpha=0.4)) #for 2d
 
     # [grph.text(reduced[i][0], reduced[i][1], reduced[i][2], labels[i]) for i in range(len(labels))] #textually label 
     #try to textually label s.t only the mean is 
-    grph.set_title(embedding_file.split("/")[-1][:-4] + " Visualized")
+    grph.set_title(embedding_file.split("/")[-1][:-4] + f" Visualized (mean lifespan={round(numpy.mean(labels))})")
     plt.show()
     fig.savefig("embeddings_visuals/" + embedding_file.split("/")[-1][:-4] + "_visual.png")
     plt.close()

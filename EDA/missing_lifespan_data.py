@@ -2,17 +2,20 @@
 SCRIPT FOR QUICKLY COMBING THRU LIFESPAN DATA TO GET IDEA OF HOW MANY ENTRIES ARE MISSING AND FOR WHAT SPECIES 
     - as of now best bet is to manually find missing lifespan data 
 """
-import csv, os, sys 
+import csv, os, sys, time 
+import requests as req
 from lifespanScraping import scrape_family
+from openai import OpenAI
+import google.generativeai as genai
 
-lifespan_data = "/Users/wyattmccarthy/Desktop/MIT Aging Project/Everything/EDA/lifespan_data.csv"
+
+lifespan_data = "/Users/wyattmccarthy/Desktop/MIT Aging Project/Everything/EDA/lifespan_data/lifespan_data.csv"
 
 
 def find_missing():
     total_species = 0
     missing_data = 0
     missing = set()
-    present = set()
     with open(lifespan_data) as read_from:
         for line in read_from:
             line = line.split(",")
@@ -26,6 +29,8 @@ def find_missing():
     print("Total Species:", total_species)
     print("Missing Lifespan for:", missing_data)
     print("Have Lifespan for:", total_species - missing_data)
+    
+    # for i in missing: print(i)
 
     # with open("missing_lifespans.csv", "w") as write_to:
     #     writer = csv.writer(write_to)
@@ -33,7 +38,64 @@ def find_missing():
     #     for species in missing:
     #         writer.writerow([species, 'N/A', 'N/A'])
 
+    return missing 
+
+
+"""
+QUERIES CHATGPT/OPENAI API for max lifespan data for missing species
+
+query format: What is the max lifespan of {species}? Please cite your reference.
+"""
+gpt_client = OpenAI(api_key="sk-proj-D3X7XWYZ2zzTBNaudWHuT3BlbkFJHmerUcXBaCaJN8dw2xPz")
+
+def query_gpt():
+    #for species in missing lifespan: 
+    missing = find_missing()
+    lifespan_info = []
+    for species in missing:
+        species = " ".join(species.split("_"))
+        req = gpt_client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": f"What is the max lifespan of {species}? Please cite your reference."}
+                ]
+                )
+        lifespan_info.append(req.choices[0].message)
+        print(lifespan_info[-1])
+    return lifespan_info
+
+
+"""
+QUERIES GOOGLE GEMINI API FOR MAX LIFESPAN DATA ON MISSING SPECIES 
+
+
+query format: What is the max lifespan of {species}? Please cite your reference.
+"""
+gemini_api_key = "AIzaSyDbYafelS05UpJY63Q9PT5-tEmxJzwotcA"
+genai.configure(api_key=gemini_api_key)
+model = genai.GenerativeModel("gemini-pro") 
+def query_gemini():
+    missing = find_missing()
+    # lifespans = {}
+    with open("lifespan_data/missing_lifespans_info.csv", "w") as write_to:
+        writer = csv.writer(write_to)
+        writer.writerow(['species', 'lifespan info'])
+        
+        for species in missing:
+            species = " ".join(species.split("_"))
+            resp = model.generate_content(f"What is the max lifespan of {species}? Find and cite academic reference")
+            time.sleep(5) #15 request-per-minute limit so wait 5 seconds btwn each to ensure not overdoing it 
+            try: 
+                writer.writerow(["_".join(species.split(" ")), resp.text])
+            except:
+                print(f'error on response for {species}', resp)
     return 
+"""
+APPEARS THAT Gemini API output is providing some false/fugaze citations... perhaps there is a better way to prompt it s.t citations are more valid 
+perhaps ask for link as well? so at very least it has to send us somewhere 
+"""
+
 
 
 """

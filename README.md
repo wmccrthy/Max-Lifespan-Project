@@ -34,7 +34,7 @@ DIRECTORY: *EDA*
                 - statistical significance (p value) in ...modified_z.csv is computed based off modified z score, while in ...normal_z.csv it is computed based off normal z score.
             - gene_rankings.csv
                 - csv file containing the following info for each gene dataset:
-                      - gene name, average statistical significance of clusters, most statistically significant cluster, least statistically significant cluster, avg #species/lifespans per cluster
+                      - gene name, average statistical significance of clusters, most statistically significant cluster, #species in most significant cluster, least statistically significant cluster, avg #species/lifespans per cluster
     - lifespan_data (directory)
         - directory containing csv files with data on the lifespans for each TOGA species and how those lifespans vary by taxonomic category.
         - MOST RELEVANT CONTENTS:

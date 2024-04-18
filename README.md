@@ -38,15 +38,15 @@ DIRECTORY: *EDA*
     - lifespan_data (directory)
         - directory containing csv files with data on the lifespans for each TOGA species and how those lifespans vary by taxonomic category.
         - MOST RELEVANT CONTENTS:
-              - lifespan_data.csv
-                  - csv file with lifespan for every TOGA species; species for which we could not find data marked with "Unknown" lifespan
-              - orders/families/genera_of_interest.csv 
-                  - csv files containing data on taxonomic orders, families, and genera for which there is a species with outlying lifespan.
-                  - for details on how these were computed, see query_data.py
-              - missing_lifespan_info.csv
-                  - csv file containing lifespan information retrieved by Gemini API (google's LLM). Gemini was queried with "What is the max lifespan of {species}? Cite your reference"
-                  - data needs to be validated and has not been incorporated into analysis
-                  - see missing_lifespan_data.py for details 
+            - lifespan_data.csv
+                - csv file with lifespan for every TOGA species; species for which we could not find data marked with "Unknown" lifespan
+            - orders/families/genera_of_interest.csv
+                - csv files containing data on taxonomic orders, families, and genera for which there is a species with outlying lifespan.
+                - for details on how these were computed, see query_data.py
+            - missing_lifespan_info.csv
+                - csv file containing lifespan information retrieved by Gemini API (google's LLM). Gemini was queried with "What is the max lifespan of {species}? Cite your reference"
+                - data needs to be validated and has not been incorporated into analysis
+                - see missing_lifespan_data.py for details 
     - embeddings_visuals (directory)
         - folder containing embedding visualizations for a sample of our gene datasets. 
     - get_regulatory_embeddings.py

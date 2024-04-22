@@ -150,7 +150,7 @@ class Perceiver_with_DNABERT_S(L.LightningModule):
 
         output = self.forward(inputs, pad_mask)  
         # print("input:",inputs,"target:",target,"prediction:",output)
-        # print("target:",target,"prediction:", output)
+        print("target:",target,"prediction:", output)
         # print(target.shape, output.shape)
 
         criterion = F.mse_loss(output, target)
@@ -190,7 +190,6 @@ def train(training_data, batch_size, num_epochs, num_dev, is_local=False):
     training_data = DataLoader(training_data, batch_size=batch_size, num_workers=19)
     if not is_local: valid_data = DataLoader(valid_data, batch_size=batch_size, num_workers=19)
 
-    
     
     model = Perceiver_with_DNABERT_S(int(seq_cutoff), DNABERT_S_pad_token, batch_size)
 

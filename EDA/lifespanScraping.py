@@ -15,7 +15,9 @@
 from urllib.request import urlopen
 import csv 
 
-# METHOD THAT SCRAPES MAX LIFESPAN OF GIVEN SPECIES (SCIENTIFIC NAME) FROM AnAge Database 
+"""
+METHOD THAT SCRAPES MAX LIFESPAN OF GIVEN SPECIES (SCIENTIFIC NAME) FROM AnAge Database 
+"""
 def scrape_max_lifespan(species):
     species_url = f'https://genomics.senescence.info/species/entry.php?species={species}'
     # GIVEN SPECIES SCIENTIFIC NAME, FORMAT URL following websites structure 
@@ -45,6 +47,9 @@ def scrape_max_lifespan(species):
 
     return [float(lifespan), source]
 
+"""
+Method that scrapes species family and genus from AnAge database
+"""
 def scrape_family(species):
     species_url = f'https://genomics.senescence.info/species/entry.php?species={species}'
     # GIVEN SPECIES SCIENTIFIC NAME, FORMAT URL following websites structure 
@@ -64,7 +69,10 @@ def scrape_family(species):
 
     return family, genus
 
-    # TRIM THE HTML S.T IT ONLY CONSISTS OF the species' family (find whats between > and </a>)
+
+"""
+METHOD TO TRIM THE HTML returned by web-scrape read S.T IT ONLY CONSISTS OF the species' family (find whats between > and </a>)
+"""
 def pull_family(html_excerpt):
     #find '">" and '</a>' and pull out whats between
     s, e = None, None
@@ -79,7 +87,9 @@ def pull_family(html_excerpt):
 
 scrape_family('Callithrix_jacchus')
 
-#scrapes Animal Diversity Web for longevity information given a species 
+"""
+scrapes Animal Diversity Web for longevity information given a species 
+"""
 def scrape_adw(species):
     species_url = f"https://animaldiversity.org/accounts/{species}"
     try: species_page =  urlopen(species_url)

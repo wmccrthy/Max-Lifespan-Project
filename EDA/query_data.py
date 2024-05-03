@@ -27,6 +27,10 @@ def prompt(file):
         conds[i][0] = int(conds[i][0])
         conds[i][1] = [float(i) for i in conds[i][1].split(",")]
     response = handle_query(file, conds, len(fields2ind.keys()))
+    query = input("Indicate the column# you would like to sort by\n")
+    sort_by = int(query.strip())
+    print(sort_by)
+    response = sorted(response, key = lambda x:float(x[sort_by]))
     for i in response: print(i)
     return
 
@@ -131,7 +135,9 @@ CREATE DICTS:
     - FAMILY:[ANIMALS IN FAMILY]
 WRITES OUT GENUSES/FAMILIES WITH LIFESPAN DISPARITY 
 
-PLOTS HISTOGRAM OF LIFESPANS PER FAMILY, GENUS (perhaps add order too)
+PLOTS HISTOGRAM OF LIFESPANS PER FAMILY, GENUS, ORDER
+
+Script used locally, if running on another machine simply changed path passed in open to location of "lifespans_by_order" csv file 
 """
 def find_lifespan_anomalies():
     genera, families, orders = {}, {}, {}
@@ -256,13 +262,15 @@ def find_lifespan_anomalies():
 
 
 """
-SCRIPT FOR RANKING GENES BASED ON avg stat sig of clusters
+SCRIPT FOR outputting stats per GENE set BASED ON avg stat sig of clusters
 ITERATES THRU GIVEN CLUSTER DATA, COMPUTES AVG stat sig of clusters, OUTPUTS FOLLOWING FORMAT:
 [gene, avg cluster stat sig, most stat sig, least stat sig, ranking score]
 
-genes_dict will hold gene:[total stat sig, total clusters, max stat sig, min stat sig] | recall that max stat sig equates to least significant and min stat sig equates to most significant
+genes_dict will hold gene:[total stat sig, total clusters, max stat sig, min stat sig, avg species per cluster, species in most sig cluster] | recall that max stat sig equates to least significant and min stat sig equates to most significant
 
 ranking score is computed as 1 / (avg_stat_sig * # of species in clusters)
+
+MIGHT USE WEIGHTED AVG FOR cluster stat sig where weights correspond to sqrt(# species in cluster)
 """
 def rank_genes(cluster_data_path):
     col_to_avg = -1
@@ -281,22 +289,44 @@ def rank_genes(cluster_data_path):
             if stat_sig == 0: stat_sig += .0001
             num_species_in_cluster = int(line[-3])
             if gene in genes: 
-                genes[gene][0] += stat_sig
-                genes[gene][1] += 1
-                genes[gene][2], genes[gene][3] = max(genes[gene][2], stat_sig), min(genes[gene][3], stat_sig)
-                genes[gene][4] += 1/(stat_sig/math.sqrt(num_species_in_cluster))
-                genes[gene][5] += num_species_in_cluster
-            else: genes[gene] = [stat_sig, 1, stat_sig, stat_sig, 1/(stat_sig / math.sqrt(num_species_in_cluster)), num_species_in_cluster]
+                genes[gene].append([stat_sig, num_species_in_cluster])
+                # genes[gene][0] += stat_sig math.sqrt(num_species_in_cluster)
+                # genes[gene][1] += 1
+                # genes[gene][2], genes[gene][3] = max(genes[gene][2], stat_sig), min(genes[gene][3], stat_sig)
+                # if genes[gene][3] == stat_sig: genes[gene][5] = num_species_in_cluster
+                # genes[gene][4] += num_species_in_cluster
+            else: genes[gene] = [[stat_sig, num_species_in_cluster]]
+                # genes[gene] = [stat_sig, 1, stat_sig, stat_sig, num_species_in_cluster, num_species_in_cluster]
     
+
     with open("gene_rankings.csv", "w") as write_to:
         writer = csv.writer(write_to)
-        writer.writerow(['gene', 'avg cluster stat sig', 'most stat sig cluster', 'least stat sig cluster', 'avg # species per cluster'])
+        writer.writerow(['gene', 'weighted avg cluster stat sig', 'unweighted avg stat sig', 'most stat sig cluster', '#species in most sig cluster', '#avg species per cluster'])
         for g in genes:
-            stat_sig_avg = genes[g][0] / genes[g][1]
-            ranking_score_avg = genes[g][4] / genes[g][1]
-            avg_species_per_cluster = genes[g][5] / genes[g][1]
-            writer.writerow([g, stat_sig_avg, genes[g][3], genes[g][2], avg_species_per_cluster])
+            stat_sig_avg = sum([i[0] for i in genes[g]])/len(genes[g])
+            # if stat_sig_avg > .4: continue  
+            # avg_species_per_cluster = genes[g][4] / genes[g][1]
+            weighted_stat_sig_avg = sum([i[0]*math.sqrt(i[1]) for i in genes[g]])/sum([math.sqrt(i[1]) for i in genes[g]])
+            best_stat_sig = min(i[0] for i in genes[g])
+            species_in_best = min([i[1] for i in genes[g] if i[0] == best_stat_sig])
+            
+            writer.writerow([g, round(weighted_stat_sig_avg, 4), round(stat_sig_avg, 4), best_stat_sig, species_in_best, sum([i[1] for i in genes[g]])/len(genes[g])])
 
+"""
+Cuts certain fields out of regulatory_sets_cluster_data.csv for more concise display 
+
+Used locally, if running on other machine simple changed path passed in open() to location of "regulatory_sets_cluster_data" csv file 
+"""
+def make_concise():
+    with open('regulatory_sets_cluster_data_concise.csv', "w") as write_to:
+        writer = csv.writer(write_to)
+        with open("/Users/wyattmccarthy/Desktop/MIT Aging Project/Everything/EDA/gene_sets_data/regulatory_sets_cluster_data_modified_z.csv") as read_from:
+            for line in read_from:
+                line = line.split(",")
+                #0,1,3,4,5,8,9,10,12
+                if len(line) < 12: continue 
+                line = [line[0], line[1], line[3], line[4], line[5], line[8], line[9], line[10], line[12]]
+                writer.writerow(line)
 
 if __name__ == "__main__":
     args = sys.argv

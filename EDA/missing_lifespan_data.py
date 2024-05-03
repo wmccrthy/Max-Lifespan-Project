@@ -12,6 +12,9 @@ import google.generativeai as genai
 lifespan_data = "/Users/wyattmccarthy/Desktop/MIT Aging Project/Everything/EDA/lifespan_data/lifespan_data.csv"
 
 
+"""
+METHOD USED LOCALLY TO FIND AND RETURN A LIST OF ALL SPECIES WITH UNKNOWN MAX LIFESPANS
+"""
 def find_missing():
     total_species = 0
     missing_data = 0
@@ -50,7 +53,7 @@ gpt_client = OpenAI(api_key="sk-proj-D3X7XWYZ2zzTBNaudWHuT3BlbkFJHmerUcXBaCaJN8d
 
 def query_gpt():
     #for species in missing lifespan: 
-    missing = find_missing()
+    missing = find_missing() #retrieve list of all species w missing lifespan data 
     lifespan_info = []
     for species in missing:
         species = " ".join(species.split("_"))
@@ -71,12 +74,14 @@ QUERIES GOOGLE GEMINI API FOR MAX LIFESPAN DATA ON MISSING SPECIES
 
 
 query format: What is the max lifespan of {species}? Please cite your reference.
+
+TO RUN: python3 missing_lifespan_data.py query_gemini
 """
 gemini_api_key = "AIzaSyDbYafelS05UpJY63Q9PT5-tEmxJzwotcA"
 genai.configure(api_key=gemini_api_key)
 model = genai.GenerativeModel("gemini-pro") 
 def query_gemini():
-    missing = find_missing()
+    missing = find_missing() #retrieve list of all species w missing lifespan data 
     # lifespans = {}
     with open("lifespan_data/missing_lifespans_info.csv", "w") as write_to:
         writer = csv.writer(write_to)
@@ -100,6 +105,9 @@ perhaps ask for link as well? so at very least it has to send us somewhere
 
 """
 WRITES OUT MAX LIFESPANS W ORDER FIELD S.T WE HAVE MEANS OF FINDING 'SIMILAR' ANIMALS W VARYING LIFESPANS 
+Essentially spits out same information w added taxonomic info in following format: order | family | genus | species | species max lifespan 
+
+TO RUN: python3 missing_lifespan_data.py get_lifespans_per_order
 """
 def get_lifespans_per_order():
     #build species->max lifespan map 
@@ -128,7 +136,6 @@ def get_lifespans_per_order():
                     written.add(species)
                     family, genus = scrape_family(species)
                     writer.writerow([order, family, genus, species, lifespan_mappings[species]])
-    
     return 
 
 #NEDD4L in top ssh 

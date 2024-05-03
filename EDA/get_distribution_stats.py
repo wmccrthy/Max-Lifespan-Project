@@ -37,6 +37,8 @@ cumulative_set_trimmed_path = "/data/rsg/chemistry/wmccrthy/Everything/cumulativ
 """
 GET LENGTH DISTRIBUTION ACROSS ALL TOGA ORTHOLOGS (REGARDLESS OF TYPE)
     - distinguish between max/min length for regulatory and non-regulatory orthologs 
+
+TO RUN: python3 get_distribution_stats get_cumulative_length_distribution
 """
 def get_cumulative_length_distribution():
     freqs = {}

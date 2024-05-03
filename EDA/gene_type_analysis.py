@@ -28,6 +28,8 @@ SET_CHI_SQUARE = SUM(CHI SQUARE) FOR EACH POSITION IN ALIGNMENT
 COMPUTES CRAMER'S V FOR THE SET GIVEN SET_CHI_SQUARE 
 
 ALSO PERFORMS ANALYSIS ON VARIOUS 'BINS' (ORGANIZED BY LIFESPAN RANGES) OF THE SET
+
+METHOD CAN BE CALLED SEPARATELY BUT IS MOSTLY FOR USE IN analyze_multiple() method
 """
 def analyze(gene_type_dataset_path, get_bins=False, chi_squared=False):
     trimmed_name = gene_type_dataset_path.split("/")[-1][:-4]
@@ -192,32 +194,39 @@ ITERATE THRU EACH REGULATORY GENE SET:
     - CALL ANALYSIS METHOD (RETURNS SEQUENCE LENGTH DISTRIBUTION DATA ACROSS SET)
         - ALSO PRINTS OUT INTERESTING SIMILARITY DATA PERTAINING TO LIFESPAN BUCKETS WITHIN ENTIRE SET 
     - WRITE OUT LENGTH DISTRIBUTION TO OUTPUT FILE 
+
+TO RUN: python3 gene_type_analysis.py analyze_multiple {path to directory with ortholog files you want to analyze OR blank if using default path}
+ 
 """
-def analyze_multiple():
+def analyze_multiple(gene_sets_path=gene_datasets_path):
     with open("regulatory_sets_metadata.csv", "w") as write_to:
         writer = csv.writer(write_to)
         writer.writerow(['gene type', 'max seq len', 'min seq len', 'mean seq len', 'median seq len', 'wmc similarity score', 'species represented'])
-        for file in os.listdir(gene_datasets_path):
+        for file in os.listdir(gene_sets_path):
             if file[-11:] == "trimmed.csv":
                 gene_type = file.split("_")[0]
-                gene_type_data = analyze(gene_datasets_path + "/" + file)
+                gene_type_data = analyze(gene_sets_path + "/" + file)
                 writer.writerow([gene_type] + gene_type_data)
                 # print()
     return 
+
 
 """
 ITERATE THRU EACH REGULATORY GENE SET:
     - CALL ANALYSIS METHOD w True flag (RETURNS bins within set that have differing similarity to set as a whole)
     - WRITE OUT interesting bins to output csv 
+
+TO RUN: python3 gene_type_analysis.py analyze_multiple_bins {path to directory with ortholog files you want to analyze OR blank if using default path} 
+ 
 """
-def analyze_multiple_bins():
+def analyze_multiple_bins(gene_sets_path=gene_datasets_path):
     with open("regulatory_interesting_bins.csv", "w") as write_to:
         writer = csv.writer(write_to)
         writer.writerow(['gene type', 'lifespan bin', 'set similarity', 'bin similarity', '# species in bin', '# sequences in bin', 'similarity diff'])
-        for file in os.listdir(gene_datasets_path):
+        for file in os.listdir(gene_sets_path):
             if file[-11:] == "trimmed.csv":
                 gene_type = file.split("_")[0]
-                gene_type_alignment, gene_type_bins = analyze(gene_datasets_path + "/" + file, get_bins=True)
+                gene_type_alignment, gene_type_bins = analyze(gene_sets_path + "/" + file, get_bins=True)
                 for bin in gene_type_bins:
                     writer.writerow([gene_type, bin[0], gene_type_alignment, bin[1], bin[2], bin[3], bin[4]])
     return 
@@ -229,42 +238,48 @@ ITERATE THRU EACH REGULATORY GENE SET:
     - COMPUTE CHI SQUARED VALUE FOR THE SET 
     - OUTPUT [GENE TYPE, CHI SQUARED VALUE, DF] 
 
+TO RUN: python3 gene_type_analysis.py analyze_chi_squared {path to directory with ortholog files you want to analyze OR blank if using default path} 
 """
-def analyze_chi_squared():
+def analyze_chi_squared(gene_sets_path=gene_datasets_path):
     with open("regulatory_sets_chi_square.csv", "w") as write_to:
         writer = csv.writer(write_to)
         writer.writerow(['gene type', 'normalized chi squared', 'bonferroni-corrected 5% threshold', 'cramers v'])
-        for file in os.listdir(gene_datasets_path):
+        for file in os.listdir(gene_sets_path):
             if file[-11:] == "trimmed.csv":
                 gene_type = file.split("_")[0]
-                gene_type_data = analyze(gene_datasets_path + "/" + file, chi_squared = True)
+                gene_type_data = analyze(gene_sets_path + "/" + file, chi_squared = True)
                 writer.writerow([gene_type] + gene_type_data)
 
-def analyze_chi_squared_bins():
+"""
+TO RUN: python3 gene_type_analysis.py analyze_chi_squared_bins {path to directory with ortholog files you want to analyze OR blank if using default path} 
+"""
+def analyze_chi_squared_bins(gene_sets_path=gene_datasets_path):
     with open("regulatory_bins_chi_square.csv", "w") as write_to:
         writer = csv.writer(write_to)
         writer.writerow(['gene type', 'gene type cramer v', 'lifespan bin', 'bin cramer v', 'cramer v difference', '#species in bin', '#sequences in bin'])
-        for file in os.listdir(gene_datasets_path):
+        for file in os.listdir(gene_sets_path):
             if file[-11:] == "trimmed.csv":
                 gene_type = file.split("_")[0]
-                gene_type_bins = analyze(gene_datasets_path + "/" + file, get_bins=True, chi_squared = True)
+                gene_type_bins = analyze(gene_sets_path + "/" + file, get_bins=True, chi_squared = True)
                 for bin in gene_type_bins:
                     writer.writerow([gene_type] + [i for i in bin])
 
 
 """
-TOKENIZES A TF SET OF SEQUENCES PRIOR TO DNABERT_S embeddings 
+TOKENIZES A SET OF SEQUENCES PRIOR TO DNABERT_S embeddings AND collects data on max/min tokenized sequence lengths
+
+TO RUN: python3 gene_type_analysis.py analyze_tokenized_seq_lengths {path to directory with ortholog files you want to analyze OR blank if using default path} 
 """
-def analyze_tokenized_seq_lengths():
+def analyze_tokenized_seq_lengths(gene_sets_path=gene_datasets_path):
     DNABERT_S_path = "/data/rsg/chemistry/wmccrthy/Everything/DNABERT-S/"
     tokenizer = AutoTokenizer.from_pretrained(DNABERT_S_path, trust_remote_code=True)
     with open("regulatory_sets_tokenized_lengths.csv", "w") as write_to:
         writer = csv.writer(write_to)
         writer.writerow(['gene type', 'max tokenized length', 'min tokenized length'])
-        for file in os.listdir(gene_datasets_path):
+        for file in os.listdir(gene_sets_path):
             if file[-11:] == "trimmed.csv":
                 gene_type = file.split("_")[0]
-                file_path = gene_datasets_path + file
+                file_path = gene_sets_path + file
                 print(file)
                 with open(file_path) as to_read:
                     min_len, max_len = float('inf'), 0
@@ -285,6 +300,10 @@ def analyze_tokenized_seq_lengths():
 
 """
 PRINTS METADATA ON THE # OF GENE SETS W MAX (TOKENIZED) SEQUENCE LENGTHS AT VARIOUS THRESHOLDS 
+
+Only used locally so far
+
+Change path within open() to wherever regulatory_sets_tokenized_lengths.csv is stored on machine method is ran on
 """
 def count_tokenized_lengths():
     freqs = {0:0, 1:0, 2:0, 3:0}

@@ -86,7 +86,7 @@ def get_avg_lengths():
     avg_raw, avg_tokenized = 0, 0
     num_raw, num_tokenized = 0, 0
     avg_species_rep = 0
-    with open("/Users/wyattmccarthy/Desktop/MIT Aging Project/Everything/EDA/gene_sets_data/regulatory_sets_metadata.csv") as read_from:
+    with open("/Users/wyattmccarthy/repos/Max-Lifespan-Project/EDA/gene_sets_data/regulatory_sets_metadata.csv") as read_from:
         for line in read_from:
             line = line.split(",")
             if num_raw > 0: 
@@ -97,7 +97,7 @@ def get_avg_lengths():
     avg_raw /= (num_raw-1)
     avg_species_rep /= (num_raw-1)
 
-    with open("/Users/wyattmccarthy/Desktop/MIT Aging Project/Everything/EDA/gene_sets_data/regulatory_sets_tokenized_lengths.csv") as read_from:
+    with open("/Users/wyattmccarthy/repos/Max-Lifespan-Project/EDA/gene_sets_data/regulatory_sets_tokenized_lengths.csv") as read_from:
         for line in read_from:
             line = line.split(",")
             if num_tokenized > 0:
@@ -110,7 +110,7 @@ def get_avg_lengths():
     print("Average Max Sequence Length (tokenized)", avg_tokenized)
 
 
-regulatory_sets_path = "/data/rsg/chemistry/wmccrthy/Everything/gene_datasets/regulatory/"
+regulatory_sets_path = "/data/rsg/chemistry/wmccrthy/gene_datasets/regulatory/"
 
 """
 GET AVG # OF SEQUENCES PER GENE SET 
@@ -142,7 +142,7 @@ Script used locally, if running on another machine simply changed path passed in
 def find_lifespan_anomalies():
     genera, families, orders = {}, {}, {}
 
-    with open("/Users/wyattmccarthy/Desktop/MIT Aging Project/Everything/EDA/lifespans_by_order.csv") as read_from:
+    with open("/Users/wyattmccarthy/repos/Max-Lifespan-Project/EDA/lifespan_data/lifespans_by_order.csv") as read_from:
         for line in read_from:
             line = line.split(",")
             if line[0] == "order" or line[-1].replace("\n", "") == 'Unknown': continue 
@@ -156,7 +156,7 @@ def find_lifespan_anomalies():
             if genus not in genera: genera[genus] = [(species, lifespan)]
             else: genera[genus].append((species, lifespan))
     
-    with open('orders_of_interest_IQR.csv', 'w') as write_to:
+    with open('lifespan_data/orders_of_interest_IQR.csv', 'w') as write_to:
         writer = csv.writer(write_to)
         # writer.writerow(['order', 'median max lifespan', 'MAD', 'outlying species', 'outlying max lifespan'])
         writer.writerow(['order', 'median lifespan', 'IQR', 'outlying species', 'outlying max lifespan'])
@@ -181,7 +181,7 @@ def find_lifespan_anomalies():
                 grph.hist(order_lifespans)
                 grph.set_title(f"{order} lifespans (n={len(order_lifespans)})")
                 # [grph.text(order_lifespans[i], i/100, s=lifespan2species[order_lifespans[i]]) for i in range(len(order_lifespans))] hard to label clearly given how lifespans are 'binned' 
-                fig.savefig(f"/Users/wyattmccarthy/Desktop/MIT Aging Project/Everything/EDA/lifespan_histograms/orders/{order}_hist.png")
+                fig.savefig(f"/Users/wyattmccarthy/repos/Max-Lifespan-Project/EDA/lifespan_histograms/orders/{order}_hist.png")
                 plt.close()
 
             # else:
@@ -190,7 +190,7 @@ def find_lifespan_anomalies():
             #     for l in order_lifespans:
             #       if l - avg_l > 1.5  * std_l: writer.writerow([order, avg_l, std_l, lifespan2species[l], l])
 
-    with open("genera_of_interest_IQR.csv", "w") as write_to:
+    with open("lifespan_data/genera_of_interest_IQR.csv", "w") as write_to:
         writer = csv.writer(write_to)
         # writer.writerow(['genus', 'median max lifespan', 'MAD', 'outlying species', 'outlying max lifespan'])
         writer.writerow(['genus', 'median lifespan', 'IQR', 'outlying species', 'outlying max lifespan'])
@@ -210,7 +210,7 @@ def find_lifespan_anomalies():
                 grph = fig.add_subplot()
                 grph.hist(genus_lifespans)
                 grph.set_title(f"{genus} lifespans (n={len(genus_lifespans)})")
-                fig.savefig(f"/Users/wyattmccarthy/Desktop/MIT Aging Project/Everything/EDA/lifespan_histograms/genera/{genus}_hist.png")
+                fig.savefig(f"/Users/wyattmccarthy/repos/Max-Lifespan-Project/EDA/lifespan_histograms/genera/{genus}_hist.png")
                 plt.close()
             #MAD BASED OUTLIER COMP
             #     tmp = 0.6745* (genus_lifespans - median_l)/MAD 
@@ -226,7 +226,7 @@ def find_lifespan_anomalies():
             #         if l - avg_l > 1.05 * std_l: writer.writerow([genus, avg_l, std_l, lifespan2species[l], l])
                 
 
-    with open("families_of_interest_IQR.csv", "w") as write_to:
+    with open("lifespan_data/families_of_interest_IQR.csv", "w") as write_to:
         writer = csv.writer(write_to)
         # writer.writerow(['family', 'median max lifespan', 'MAD', 'outlying species', 'outlying lifespan'])
         writer.writerow(['family', 'median lifespan', 'IQR', 'outlying species', 'outlying max lifespan'])
@@ -245,7 +245,7 @@ def find_lifespan_anomalies():
                 fig = plt.figure()
                 grph = fig.add_subplot()
                 grph.set_title(f"{family} lifespans (n={len(family_lifespans)})")
-                fig.savefig(f"/Users/wyattmccarthy/Desktop/MIT Aging Project/Everything/EDA/lifespan_histograms/families/{family}_hist.png")
+                fig.savefig(f"/Users/wyattmccarthy/repos/Max-Lifespan-Project/EDA/lifespan_histograms/families/{family}_hist.png")
                 plt.close()
             #MAD BASED OUTLIERS
             #     tmp = 0.6745* (family_lifespans - median_l)/MAD 
@@ -320,7 +320,7 @@ Used locally, if running on other machine simple changed path passed in open() t
 def make_concise():
     with open('regulatory_sets_cluster_data_concise.csv', "w") as write_to:
         writer = csv.writer(write_to)
-        with open("/Users/wyattmccarthy/Desktop/MIT Aging Project/Everything/EDA/gene_sets_data/regulatory_sets_cluster_data_modified_z.csv") as read_from:
+        with open("/Users/wyattmccarthy/repos/Max-Lifespan-Project/EDA/gene_sets_data/regulatory_sets_cluster_data_modified_z.csv") as read_from:
             for line in read_from:
                 line = line.split(",")
                 #0,1,3,4,5,8,9,10,12

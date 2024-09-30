@@ -235,7 +235,7 @@ def cluster_all_embeddings(dir = None):
                     writer.writerow([gene_type, round(cum_mean, 1), round(cum_std, 1), f'{round(q1)}-{round(q3)}', f'cluster{label}',round(cluster_mean, 1), round(cluster_std, 1), round(cluster_iqr, 1), f'{round(cluster_q1)}-{round(cluster_q3)}', len(cluster_lifespans), len(cluster_species), round(modified_z_score, 2), round(p_value, 4)])
 
 
-                    # write additional output file to gene_datasets/species_per_gene_cluster_data/gene/clusterN_species.csv
+                    # write additional output file to EDA/species_per_gene_cluster_data/gene/clusterN_species.csv
                     with open(f"{species_data_path}/cluster{label}_species.csv", "w") as write_to_2:
                         writer_2 = csv.writer(write_to_2)
                         writer_2.writerow(['species', 'lifespan'])

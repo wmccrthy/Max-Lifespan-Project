@@ -17,7 +17,13 @@ BROAD SCRIPT FOR THE PURPOSE OF TRIMMING DATA
                     - Uncertain Loss   
                     - Missing
                     - Paralogous Projection
-                    - containing gap '-' char for more than 20% of its total length 
+                    - containing gap '-' char for more than 20% of its total length
+
+    - def create_one2one_set(file_path):
+        - iterate thru given toga file path, writing a line to output if and only if it's sequence is:
+            - one2one
+            - between lengths of 104 and 31620
+
 """
 import os, csv, sys
 from collections import Counter
@@ -28,6 +34,34 @@ gene_datasets_path = "/data/rsg/chemistry/wmccrthy/Everything/gene_datasets/regu
 
 
 invalid_intactness = set(["lost", "missing", "paralogous projection"])
+
+"""
+method to trim a given csv file path (expected format: ['organism','gene_id','orthologType','chromosome','start','end','direction (+/-)','intactness','sequence'])
+generates new file only including one2one sequences btwn lengths of 104 and 31620 
+"""
+def create_one2one_set(file_path):
+    new_path = file_path.split(".")[0] + "_one2one.csv"
+    print(new_path)
+    total_data = 0
+    num_data = 0
+    with open(new_path, "w") as write_to:
+        writer = csv.writer(write_to)
+        writer.writerow(['organism','gene_id','orthologType','chromosome','start','end','direction (+/-)','intactness','sequence'])
+        with open(file_path) as read_from:
+            for line in read_from:
+                line = line.split(",")
+                if len(line) < 9: continue
+                total_data += 1
+                seq = line[-1].strip()
+                length = len(seq)
+                if length < 104 or length > 31620: continue #only include seqs of length btwn this range
+                ortholog_type = line[2]
+                if ortholog_type != "one2one": continue #only include one2one seqs 
+                num_data += 1
+                writer.writerow(line)
+    print("Total Data: ", total_data)
+    print("Valid Data: ", num_data)
+
 
 def trim_cumulative():
     trimmed_path = "/".join(cumulative_untrimmed_path.split("/")[:-1]) + "/cumulativeTOGAset_trimmed.csv"

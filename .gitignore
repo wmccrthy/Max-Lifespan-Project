@@ -3,3 +3,4 @@
 env/
 venv/
 libs/
+.DS_store

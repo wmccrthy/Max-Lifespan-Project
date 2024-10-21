@@ -9,7 +9,7 @@ import time
            
 # tokenizing to a file
 # enformer 829124 
-# max length 22785 but enformer required length 196608 
+# max length 22785 but enformer required length 196608
 
 def transform4Enformer(seq, max_len):
     """

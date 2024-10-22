@@ -141,7 +141,7 @@ def create_one2one_gene_sets():
 Method that iterates through one2one gene datasets and outputs csv file with [gene, num sequences, num species]
 """
 def get_one2one_stats():
-    gene_stats = {} #dict to hold gene:(num_data_entries, num_species) pairs
+    gene_stats = {} #dict to hold gene:(num_data_entries, num_species, max_len) pairs
     # after iterating thru all genes s.t we've generated one2one, trimmed, gene sets
     # create new file that outputs stats per gene (csv of format [gene | num_entries | num_species])
     # we can use this file to generate histograms thereafter
@@ -150,15 +150,18 @@ def get_one2one_stats():
         cur_gene = file.split("_")[0]
         organisms = set()
         num_data = 0
+        max_len = 0
         with open(file_path) as read_from:
             for line in read_from:
                 line = line.split(",")
                 if len(line) < 10: continue #don't read empty lines
                 org = "_".join(line[0].split("_")[:2])
+                seq = line[-1].strip().replace('"',"").replace("\n", "")
+                max_len = max(max_len, len(seq))
                 # print(org)
                 organisms.add(org)
                 num_data += 1
-        gene_stats[cur_gene] = (num_data, len(organisms))
+        gene_stats[cur_gene] = (num_data, len(organisms), max_len)
         # print(cur_gene, num_data, len(organisms))
         if len(organisms) > 450:
             print("============= WARNING =============")
@@ -166,10 +169,10 @@ def get_one2one_stats():
 
     with open("/data/rbg/users/wmccrthy/chemistry/Everything/EDA/regulatory_one2one_sets_metadata.csv", "w") as write_to:
         writer = csv.writer(write_to)
-        writer.writerow(["gene", "# seqs", "# species"])
+        writer.writerow(["gene", "# seqs", "# species", "max seq len"])
         for gene in gene_stats:
-            num_seqs, num_species = gene_stats[gene]
-            writer.writerow([gene, num_seqs, num_species])
+            num_seqs, num_species, max_len = gene_stats[gene]
+            writer.writerow([gene, num_seqs, num_species, max_len])
     write_to.close()
 
 

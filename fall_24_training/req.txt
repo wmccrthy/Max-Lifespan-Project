@@ -1,0 +1,11 @@
+einops
+transformers==4.29.2
+peft
+omegaconf
+torch
+evaluate
+accelerate
+scipy
+numpy
+wandb
+lightning

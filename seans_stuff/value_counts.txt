@@ -1,0 +1,6 @@
+20723300 
+16177970 one2one
+3159485 many2many
+ 979144 one2many
+ 406700 many2one
+      2 orthologType

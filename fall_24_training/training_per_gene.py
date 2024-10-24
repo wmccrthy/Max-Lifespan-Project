@@ -16,12 +16,12 @@ import csv
 """
 This script is informed by EDA we ran to trim cumulative dataset s.t we only have one2one sequences of lengths between 104 and 31620
 trimmed cumulative data was then organized into sets per gene
-we then ran further analysis to determine the number of sequences and number of species per gene set
+we then ran further analysis to determine the number of sequences, number of species, and max sequence length per gene set
 
 Script for running enformer model on a per gene basis (5 fold validation for each gene, where we read in/load training data in separately)
 
 PSUEDO/STRUCTURE:
-enformer model code (repurposed from Maggie's work w/ tweaked hyper parameters)
+enformer model code (repurposed from Maggie's work w/ tweaked params)
 
 code to create map of gene:(num_seqs, num_species) so we only train if gene has num_species > 300
 
@@ -31,13 +31,18 @@ for each gene_one2one_file:
     train
 
     save results
+
+
+TO DO:
+    - adjust paths from Maggie's dirs to mine
+    - trace thru script make sure everything makes sense
 """
-MAX_SEQ_LEN = 31620 # the data we are using for this script has been trimmed s.t all sequences are one2one and between lengths 104 and 31620
+
 gene_one2one_datasets_path = "/data/rbg/users/wmccrthy/chemistry/Everything/gene_datasets/regulatory_one2one/"
 gene_one2one_metadata_path = "/data/rbg/users/wmccrthy/chemistry/Everything/EDA/regulatory_one2one_sets_metadata.csv"
 
 
-def map_gene_to_num_data():
+def map_gene_to_metadata():
     """
     iterates through regulatory_one2one_sets_metadata.csv to create dict of gene:(num_data, num_species)
     """
@@ -45,8 +50,8 @@ def map_gene_to_num_data():
     with open(gene_one2one_metadata_path) as read_from:
          for line in read_from:
               line = line.split(",")
-              gene, num_data, num_species = line
-              genes[gene] = (num_data, num_species)
+              gene, num_data, num_species, max_len = line
+              genes[gene] = (num_data, num_species, max_len)
     return genes
 
 def transform4Enformer(seq, max_len):
@@ -75,7 +80,8 @@ def prepare4Enformer(file_path, max_len):
     with open(file_path) as to_read:
         for line in to_read:
             line = line.split(",")
-            if len(line) < 2: continue 
+            if len(line) < 8 or line[0] == "organism": continue #skip corrupted entries and first line (header)
+
             lifespan, seq = line[1], line[-1].strip().replace('"',"").replace("\n", "") #make sure indices of seq and lifespan are modified according to what training data is passed 
             seq = seq.replace('"', "").replace(" ", "")
             if len(lifespan) > 5 or len(seq) == 0: 
@@ -106,10 +112,12 @@ class Enformer_Model(L.LightningModule):
             num_tracks = 128,
             post_transformer_embed = False,
         )
+        for p in self.model.parameters(): p.requires_grad = False #freeze enformer layer
+
         self.fc1 = nn.Linear(128, 1)
-        self.dropout1 = Dropout(p=0.1)
-        self.fc2 = nn.Linear(896, 1)
-        self.droupout2 = Dropout(p=0.1)
+        # self.dropout1 = Dropout(p=0.1) REMOVING DROPOUT FOR NOW
+        self.fc2 = nn.Linear(max_len, 1)
+        # self.droupout2 = Dropout(p=0.1) REMOVING DROPOUT FOR NOW
 
     def forward(self, inputs):
         #print("inputs shape:", inputs.shape) #dim = (batch size, max_len) #usually (batch size, 1, max_len)
@@ -117,11 +125,16 @@ class Enformer_Model(L.LightningModule):
         #print("outputs shape:", outputs.shape) # dim = (batch size, 896, 128) # usually (batch size, max_len, 768)
 
         output1 = self.fc1(outputs) #dim = (batch size, 896, 1)
-        output1 = self.dropout1(output1)
+
+        # output1 = self.dropout1(output1) REMOVING DROPOUTS FOR NOW
+
         output1 = output1.squeeze(-1)
         final_output = self.fc2(output1) #dim = (batch size, 1)
-        final_output = self.droupout2(final_output)
+
+        # final_output = self.droupout2(final_output) REMOVING DROPOUTS FOR NOW
+
         #print("final output shape:", final_output.shape)
+
         return final_output 
 
     def training_step(self, batch, batch_idx): 
@@ -147,7 +160,7 @@ class Enformer_Model(L.LightningModule):
         return loss
 
     def configure_optimizers(self):
-        optimizer = torch.optim.SGD(self.parameters(), lr=1e-4, weight_decay=1e-5)
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-4, weight_decay=1e-5)
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
@@ -172,7 +185,7 @@ class EnformerDataset(Dataset):
         label = self.labels[idx]
         return torch.tensor(seq, dtype=torch.int64), torch.Tensor([label])
 
-def train(shuffled_training_inps, shuffled_training_labels, gene, fold):
+def train(shuffled_training_inps, shuffled_training_labels, gene, fold, gene_max_len):
     batch_size, num_epochs, num_dev = int(2), int(40), int(1)
     
     #split data into training and validation set
@@ -191,7 +204,7 @@ def train(shuffled_training_inps, shuffled_training_labels, gene, fold):
     training_data = DataLoader(train_dataset, batch_size=batch_size, num_workers=8, drop_last = True)
     valid_data = DataLoader(valid_dataset, batch_size=batch_size, num_workers=8, drop_last = True)
     
-    model = Enformer_Model(batch_size, MAX_SEQ_LEN)
+    model = Enformer_Model(batch_size, gene_max_len)
 
     os.environ["WANDB_DIR"]=os.path.abspath("/data/rsg/chemistry/maggiejl/wandb_dir")
     wandb_logger = WandbLogger(log_model="all", project="split-by-gene", name = f"{gene}_{len(training_labels)}_fold_{fold}", dir = "/data/rsg/chemistry/maggiejl/P2/prelim_training")
@@ -223,8 +236,8 @@ if __name__ == "__main__":
     os.environ["TOKENIZERS_PARALLELISM"] = "false"  
     output_path = "/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training/stats_enformer_by_gene.csv"
     
-    # get mapping of gene:num_data, num_species
-    gene_stats = map_gene_to_num_data()
+    # get mapping of gene:num_data, num_species, max_len
+    gene_stats = map_gene_to_metadata()
     #clear csv
     with open(output_path, mode='w', newline='') as file: pass
     #add first row
@@ -238,11 +251,12 @@ if __name__ == "__main__":
                     
     for gene_path in os.listdir(gene_one2one_datasets_path):
         specific_gene = gene_path.split("_")[0] # extract specific gene from file path
+        gene_num_species, gene_max_len = gene_stats[specific_gene][1:]
         print("starting: ", specific_gene)
         torch.cuda.empty_cache()
 
-        # get data and labels for gene
-        training_inps, training_labels = prepare4Enformer(gene_path, MAX_SEQ_LEN)
+        # get tokenized data and labels for gene
+        training_inps, training_labels = prepare4Enformer(gene_path, gene_max_len)
         print("length of data: ", len(training_inps), len(training_labels))
         mean, std, sk, kurt = stats(training_labels)
 
@@ -255,11 +269,11 @@ if __name__ == "__main__":
         train_fold_results = []
         valid_fold_results = []
         #train only if gene set has representation from 300 or more species
-        if gene_stats[specific_gene][1] < 300:
+        if gene_num_species < 300:
             writeLine = [specific_gene, len(training_labels), mean, std, sk, kurt,]
         else:
             for fold in range(5):
-                train_loss, valid_loss, wandbstr = train(shuffled_training_inps, shuffled_training_labels, specific_gene, fold)
+                train_loss, valid_loss, wandbstr = train(shuffled_training_inps, shuffled_training_labels, specific_gene, fold, gene_max_len)
                 train_fold_results.append(train_loss)
                 valid_fold_results.append(valid_loss)
             train_avg = sum(train_fold_results) / len(train_fold_results)

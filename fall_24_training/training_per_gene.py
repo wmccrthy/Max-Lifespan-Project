@@ -160,6 +160,7 @@ class Enformer_Model(L.LightningModule):
         return loss
 
     def configure_optimizers(self):
+        # EXPERIMENT W ADAM and SGD
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-4, weight_decay=1e-5)
         return {
             "optimizer": optimizer,
@@ -206,8 +207,8 @@ def train(shuffled_training_inps, shuffled_training_labels, gene, fold, gene_max
     
     model = Enformer_Model(batch_size, gene_max_len)
 
-    os.environ["WANDB_DIR"]=os.path.abspath("/data/rsg/chemistry/maggiejl/wandb_dir")
-    wandb_logger = WandbLogger(log_model="all", project="split-by-gene", name = f"{gene}_{len(training_labels)}_fold_{fold}", dir = "/data/rsg/chemistry/maggiejl/P2/prelim_training")
+    os.environ["WANDB_DIR"]=os.path.abspath("/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training/wandb_dir")
+    wandb_logger = WandbLogger(log_model="all", project="split-by-gene", name = f"{gene}_{len(training_labels)}_fold_{fold}", dir = "/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training")
     
     print("ready to train!")
     trainer = L.Trainer(max_epochs = num_epochs,

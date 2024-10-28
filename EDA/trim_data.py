@@ -98,10 +98,6 @@ def create_one2one_gene_sets():
         num_data = 0
         organisms = set()
 
-        # print(new_file_path, cur_gene)
-
-        # continue
-
         with open(new_file_path, "w") as write_to:
             writer = csv.writer(write_to)
             writer.writerow(['organism','max_lifespan', 'gene_id','orthologType','chromosome','start','end','direction (+/-)','intactness','sequence'])

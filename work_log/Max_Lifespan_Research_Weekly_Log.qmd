@@ -1,0 +1,272 @@
+---
+title: 'Max Lifespan Research Log'
+author: "Wyatt McCarthy"
+# date: today
+# date-format: MMMM D
+# Document formatting
+format: 
+  pdf:
+    pdf-engine: pdflatex
+    documentclass: article
+    block-headings: false # required to use titlesec package
+    include-in-header:
+      - text: | 
+          \usepackage{fancyhdr}\pagestyle{fancy}\fancyhf{}\cfoot{\thepage}
+          \lhead{\footnotesize}
+          % Formats for headings
+          \usepackage[compact]{titlesec}
+          \titleformat{\section}[hang]
+            {\large\bfseries
+              \ifnum \value{section} > 0  \newpage \fi \vspace{1em}}
+            {Weeks of:}{5mm}{}[]
+          \titleformat{\subsection}[hang]
+            {\vspace{1em}}
+            {\bfseries\thesubsection}{5mm}{}[]
+          % Additional text formatting
+          \AtBeginDocument{\raggedright}
+    classoption: fleqn
+    geometry: 
+      - vmargin = 0.75in
+      - hmargin = 1in
+  html:
+    html-math-method: mathjax
+number-sections: true
+number-depth: 2
+# Font options
+fontfamily: cmbright
+fontsize: 10pt
+linestretch: 1
+colorlinks: true
+# Code options
+code-line-numbers: true
+code-block-bg: "#f8f8f8"
+code-block-border-left: true
+highlight-style: atom-one
+# Figure options
+fig-height: 2.4
+fig-width: 3.6
+fig-cap-location: bottom
+fig-cap-align: center
+---
+
+```{r}
+#| include: false
+
+# set up code chunk to import util libraries
+library(kableExtra)
+library(tidyverse)
+library(dplyr)
+library(readr)
+```
+
+# September 16th - September 30th
+Focus of this period was to get re-situated with the project and caught up on the work that was done over the summer. For a quick recap, when I finished my research in the spring, we had just gotten to modeling, following a lengthy EDA period where we identified potentially "good" and "bad" data. For more info, see report (link to PDF). 
+
+Quick EDA Recap:
+
+    * 51 million DNA sequences orthologous to the human genome from 453 different mammalian genomes 
+    * Added `lifespan` variable to data (according to the species which a sequence was from)
+    * Organized data into sets categorized by the gene from which a sequence was extracted
+    * For each gene:
+        * used DNABERT-S embedding model to embed sequences (embeddings of dim 1 x 768)
+        * reduced embedding dimensionality to 1 x 3 using PCA
+        * k-means clustered reduced embeddings
+            * idea here is that clustered embeddings represent similar DNA sequences
+        * computed  lifespan statistics (mean, median, std deviation, z score) for each 
+        cluster to glean whether there is association between DNA similarity and lifespan in any 
+        clusters
+            * if there is no association between DNA similarity and lifespan, data is definitely
+            bad; if there is association, data has potential
+    * Glimpse of the data we've collected:
+```{r}
+#| fig-width: 10
+#| echo: false
+#| eval: true
+
+# r cell displaying the head of datasets
+setwd("/Users/wyattmccarthy/repos/Max-Lifespan-Project/EDA/")
+
+gene_sets_metadata <-
+    read_csv("gene_sets_data/regulatory_sets_metadata.csv",
+        show_col_types = FALSE
+    ) |>
+    head(5)
+
+gene_sets_cluster_data <-
+    read_csv("gene_sets_data/regulatory_sets_cluster_data_modified_z.csv",
+        show_col_types = FALSE
+    ) |>
+    head(5)
+
+gene_sets_proxy_rankings <-
+    read_csv("gene_sets_data/gene_rankings.csv",
+        show_col_types = FALSE
+    ) |>
+    head(5)
+
+kable(gene_sets_metadata, digits = 3)
+kable(gene_sets_cluster_data, digits = 3)
+kable(gene_sets_proxy_rankings, digits = 3)
+```
+
+    * And some examples of clustering results (and how they vary according to z-score)
+
+![]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/good_clustering_results.png")
+![]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/bad_clustering_results.png")
+
+
+Quick Modeling Recap:
+    * The main purpose of the EDA described above was to identify and compile training data; the idea from there was that if we could train a model to accurately predict lifespan when given a DNA sequence from an "outlying" species, we were on to something
+        * in this context, by "outlying" species we mean a species whose lifespan is uncharacteristically large relative to genetically similar species
+        * to identify such species, we performed further analysis, briefly shown in the tables and plots below
+```{r}
+#| echo: false
+#| eval: true
+
+# show table w/ families/genera of interest
+setwd("/Users/wyattmccarthy/repos/Max-Lifespan-Project/EDA/")
+
+family_of_interest <-
+  read_csv("lifespan_data/families_of_interest_IQR.csv", 
+  show_col_types = FALSE) |>
+  head(5)
+
+genera_of_interest <- 
+  read_csv("lifespan_data/genera_of_interest_IQR.csv",
+  show_col_types = FALSE) |>
+  head(5)
+
+orders_of_interest <-
+  read_csv("lifespan_data/orders_of_interest_IQR.csv",
+  show_col_types = FALSE) |>
+  head(5)
+
+kable(family_of_interest, digits = 2)
+kable(genera_of_interest, digits = 2)
+kable(orders_of_interest, digits = 2)
+```
+
+![Species Lifespan Histograms]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/summative lifespan histograms.png")
+
+    * With the context gleaned from this EDA, we experimented with various modeling approaches:
+      * The Perceiver Model
+        * unsuccessful, model did not appear to learn well regardless of the configuration of 
+        training data tested; some results shown below 
+![Perceiver Training Results]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/perceiver_results_good_data.png")
+
+      * The Enformer Model
+        * some successful runs; able to get low validation loss on two sets of training data;
+        one with 1000 entries selected from the top 6 genes (according to statistically 
+        significant clusters) and another with 100 arbitrarily selected entries across all data
+        * positive results here inspired us to investigate training on isolated gene datasets; 
+        finding a relationship between DNA composition and lifespan within a certain gene would
+        be particularly interesting
+        * when trying to train on larger datasets, we ran into memory issues due to how we were 
+        loading in data. That is, we were trying to read in a 20gb dataset rather than processing 
+        in smaller chunks at a time (this explains why per-gene analysis cut-off after a very small
+        subset of genes)
+<!-- Enformer Results -->
+![Enformer Training Results on "Good" Data]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/1000_good_data_results.png")
+![Enformer Training Results on Arbitrary Data]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/arbitrary_100_results.png")
+<!-- Per-Gene Analysis (Enformer model) -->
+![Enformer Training Per-Gene Results]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/per_gene_results.png"){height=50%}
+
+Given our failures to analyze larger quantities of data, we had to re-evaluate our approach to training.
+
+# October 1st - October 25th
+
+Focus of this period was to retrace our data collection (from months and months ago) to ensure it's validity, recompile and trim data where necessary and devise a modeling approach in which we could effectively train on these smaller, trimmed datasets. Our first task was to trim our cumulative data. Given the memory issues we encountered earlier, as well as the performance issues incurred by pre-processing extremely long DNA sequences before training a model, we wanted to trim data with outlying sequence lengths. To define a valid range of sequence lengths, we collected metrics on the distribution of sequence lengths across all gene data:
+![Sequence Length Distribution]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/untrimmed_seq_lens.png")
+![Sequence Length Distribution(log10 scale)]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/untrimmed_seq_lens_log10.png")
+
+Given the massive range of sequence lengths, we decided an appropriate range of sequence lengths to incorporate in analysis was between 100 (inverse log10(2)) and 31622 (inverse log10(4.5)), where the vast majority of the distribution falls.
+With that, we decided to trim data such only we only kept sequences with lengths in this range and that were annotated as "one2one" (given our gene annotations come from [TOGA](https://www.science.org/doi/10.1126/science.abn3107), a ML classifier, we want sequences that are most likely to be orthologous). Below you can see the code used for one of our trimming methods (this chunk also outputs some stats on the trimmed data).
+```{python}
+#| python.reticulate: FALSE
+#| eval: FALSE
+
+# Demo Script for trimming data
+"""
+method to trim a given gene's csv file path 
+(expected format: 
+['organism','max_lifespan', 'gene_id',
+'orthologType','chromosome','start','end',
+'direction (+/-)','intactness','sequence'])
+generates new file only including one2one sequences btwn lengths of 104 and 31620
+computes stats of # of sequences and # of species represented per gene
+"""
+def create_one2one_gene_sets():
+    gene_stats = {} #dict to hold gene:(num_data_entries, num_species) pairs
+    num_genes = 0
+    for file in os.listdir(gene_datasets_path):
+        file_path = gene_datasets_path + file 
+        new_file_path = 
+          "/".join(file_path.split("/")[:-2]) + 
+          "/regulatory_one2one/" + "".join(file.split(".")[:-1]) + 
+          "_one2one.csv"
+        #only execute on most up-to-date 'trimmed' gene files 
+        if file_path[-21:] != "orthologs_trimmed.csv": continue
+        num_genes += 1
+        cur_gene = file.split("_")[0]
+        num_data = 0
+        organisms = set()
+
+        with open(new_file_path, "w") as write_to:
+            writer = csv.writer(write_to)
+            writer.writerow(
+              ['organism','max_lifespan', 'gene_id',
+              'orthologType','chromosome','start','end',
+              'direction (+/-)','intactness','sequence']
+            )
+            with open(file_path) as read_from:
+                for line in read_from:
+                    line = line.split(",")
+                    if len(line) < 10: continue 
+                    seq = line[-1].strip()
+                    length = len(seq)
+                    if length < 104 or length > 31620: 
+                      continue #only include seqs of length in this range
+                    ortholog_type = line[3]
+                    if ortholog_type != "one2one": 
+                      continue #only include one2one seqs 
+                    num_data += 1
+                    print(line[0])
+                    organisms.add(line[0])
+                    writer.writerow(line)
+
+        #fill dict entry for current gene
+        gene_stats[cur_gene] = (num_data, len(organisms))
+
+        write_to.close()
+        os.system(f'rm -rf {file_path}')
+
+    # after iterating thru all genes s.t we've generated one2one, trimmed, gene sets
+    # create new file that outputs stats per gene 
+    # (csv of format [gene | num_entries | num_species])
+    # we can use this file to generate histograms thereafter
+    
+    with open(
+      "/data/rbg/users/wmccrthy/chemistry/Everything/EDA/regulatory_one2one_sets_metadata.csv", 
+      "w") as write_to:
+        writer = csv.writer(write_to)
+        writer.writerow(["gene", "# seqs", "# species"])
+        for gene in gene_stats:
+            num_seqs, num_species = gene_stats[gene]
+            writer.writerow([gene, num_seqs, num_species])
+    write_to.close()
+```
+
+For the time being, we want to experiment with training on individual genes (which can be individually pre-processed and tokenized) to avoid the memory issues we were encountering earlier. Thereafter, we will circle back to training on larger datasets. 
+Once our data was trimmed according to the above constraints, we collected the following to inform this training:
+  * distribution of number of species represented in each gene dataset
+![]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/species_per_gene.png") 
+  * distribution of number of sequences in each gene dataset
+![]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/seqs_per_gene.png")
+
+Given the distribution of species in each gene dataset, we decided it makes sense to train on gene sets with at least 300 species represented. 
+
+# October 28th - ...
+
+Focus of this period is to run scripts to train Enformer model on each of our gene datasets, evaluate results, and move forward accordingly...
+
+## Training Results

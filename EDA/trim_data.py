@@ -152,7 +152,7 @@ def get_one2one_stats():
                 line = line.split(",")
                 if len(line) < 10: continue #don't read empty lines
                 org = "_".join(line[0].split("_")[:2])
-                seq = line[-1].strip().replace('"',"").replace("\n", "")
+                seq = line[-1].strip().replace('"',"").replace("\n", "").replace(" ", "")
                 max_len = max(max_len, len(seq))
                 # print(org)
                 organisms.add(org)

@@ -68,6 +68,7 @@ def transform4Enformer(seq, max_len):
         elif letter == "G": newseq.append(2)
         elif letter == "T": newseq.append(3)
         elif letter == "N": newseq.append(4)
+    if len(newseq) < 500: print(len(newseq))
     newseq = newseq + [-1]*(max_len - len(newseq))
     newseq = torch.tensor(newseq)
     return newseq
@@ -81,11 +82,9 @@ def prepare4Enformer(file_path, max_len):
         for line in to_read:
             line = line.split(",")
             if len(line) < 8 or line[0] == "organism": continue #skip corrupted entries and first line (header)
-
-            lifespan, seq = line[1], line[-1].strip().replace('"',"").replace("\n", "") #make sure indices of seq and lifespan are modified according to what training data is passed 
-            seq = seq.replace('"', "").replace(" ", "")
+            lifespan, seq = line[1], line[-1].strip().replace('"',"").replace("\n", "").replace(" ", "") #make sure indices of seq and lifespan are modified according to what training data is passed
             if len(lifespan) > 5 or len(seq) == 0: 
-                print("indicates lifespan is unknown")
+                # print("indicates lifespan is unknown")
                 continue #indicates lifespan is 'Unknown' 
             seq = transform4Enformer(seq, max_len)
             data.append(seq)
@@ -104,7 +103,7 @@ class Enformer_Model(L.LightningModule):
     def __init__(self, batch_size, max_len) -> None:
         super().__init__()
         en_pretrain = from_pretrained("EleutherAI/enformer-official-rough", 
-                                                  #target_length=max_len,
+                                                  target_length=max_len,
                                                    use_tf_gamma = False,
         )
         self.model = HeadAdapterWrapper(
@@ -112,30 +111,39 @@ class Enformer_Model(L.LightningModule):
             num_tracks = 128,
             post_transformer_embed = False,
         )
-        for p in self.model.parameters(): p.requires_grad = False #freeze enformer layer
+
+        # for p in self.model.parameters(): p.requires_grad = False #freeze enformer layer
+        # DO WE WANT TO UNFREEZE THIS LAYER IF WE ARE GETTING LOSS DIRECTLY FROM ENFORMER W NO ADDITIONAL LAYERS?
 
         self.fc1 = nn.Linear(128, 1)
         # self.dropout1 = Dropout(p=0.1) REMOVING DROPOUT FOR NOW
         self.fc2 = nn.Linear(max_len, 1)
         # self.droupout2 = Dropout(p=0.1) REMOVING DROPOUT FOR NOW
 
-    def forward(self, inputs):
-        #print("inputs shape:", inputs.shape) #dim = (batch size, max_len) #usually (batch size, 1, max_len)
-        outputs = self.model(inputs) #embed first seq in batch
-        #print("outputs shape:", outputs.shape) # dim = (batch size, 896, 128) # usually (batch size, max_len, 768)
+    def forward(self, inputs, target):
+        print("inputs shape pre-mod:", inputs.shape) #dim = (batch size, max_len) #usually (batch size, 1, max_len)
+        # breakpoint()
 
-        output1 = self.fc1(outputs) #dim = (batch size, 896, 1)
+        
+        outputs = self.model(inputs, target = target) #embed first seq in batch
 
-        # output1 = self.dropout1(output1) REMOVING DROPOUTS FOR NOW
+        return outputs # ===================== TESTING THIS ======================
+    
+        # print(outputs)
+        # print("outputs shape:", outputs.shape) # dim = (batch size, 896, 128) # usually (batch size, max_len, 768)
 
-        output1 = output1.squeeze(-1)
-        final_output = self.fc2(output1) #dim = (batch size, 1)
+        # output1 = self.fc1(outputs) #dim = (batch size, 896, 1)
 
-        # final_output = self.droupout2(final_output) REMOVING DROPOUTS FOR NOW
+        # # output1 = self.dropout1(output1) REMOVING DROPOUTS FOR NOW
 
-        #print("final output shape:", final_output.shape)
+        # output1 = output1.squeeze(-1)
+        # final_output = self.fc2(output1) #dim = (batch size, 1)
 
-        return final_output 
+        # # final_output = self.droupout2(final_output) REMOVING DROPOUTS FOR NOW
+
+        # #print("final output shape:", final_output.shape)
+
+        # return final_output 
 
     def training_step(self, batch, batch_idx): 
         # breakpoint()
@@ -149,7 +157,8 @@ class Enformer_Model(L.LightningModule):
 
     def _shared_eval_step(self, batch, batch_idx):
         inputs, target = batch
-        output = self.forward(inputs)  
+        # print("inputs: ", inputs, len(inputs[0]), len(inputs[1]), inputs.shape)
+        output = self.forward(inputs, target)  
         #print("eval input shape:",inputs.shape, "target shape :",target.shape,"output:",output.shape)
         #print("new target shape: ", reshaped_target.shape)
 
@@ -184,10 +193,11 @@ class EnformerDataset(Dataset):
     def __getitem__(self, idx):
         seq = self.seq[idx]
         label = self.labels[idx]
-        return torch.tensor(seq, dtype=torch.int64), torch.Tensor([label])
+        # return torch.tensor(seq, dtype=torch.int64), torch.Tensor([label]) # seq should already be in tensor form, so try returning diff vals
+        return seq, torch.Tensor([label])
 
 def train(shuffled_training_inps, shuffled_training_labels, gene, fold, gene_max_len):
-    batch_size, num_epochs, num_dev = int(2), int(40), int(1)
+    batch_size, num_epochs, num_dev = int(1), int(40), int(1)
     
     #split data into training and validation set
     fold_size = len(shuffled_training_labels) // 5
@@ -253,11 +263,13 @@ if __name__ == "__main__":
     for gene_path in os.listdir(gene_one2one_datasets_path):
         specific_gene = gene_path.split("_")[0] # extract specific gene from file path
         gene_num_species, gene_max_len = gene_stats[specific_gene][1:]
-        print("starting: ", specific_gene)
+        gene_num_species, gene_max_len = int(gene_num_species), int(gene_max_len)
+        print("starting: ", specific_gene, " num species: ", gene_num_species, " max seq len: ", gene_max_len)
         torch.cuda.empty_cache()
 
         # get tokenized data and labels for gene
-        training_inps, training_labels = prepare4Enformer(gene_path, gene_max_len)
+        full_gene_path = gene_one2one_datasets_path + gene_path
+        training_inps, training_labels = prepare4Enformer(full_gene_path, gene_max_len)
         print("length of data: ", len(training_inps), len(training_labels))
         mean, std, sk, kurt = stats(training_labels)
 

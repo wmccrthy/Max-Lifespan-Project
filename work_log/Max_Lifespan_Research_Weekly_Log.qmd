@@ -269,4 +269,24 @@ Given the distribution of species in each gene dataset, we decided it makes sens
 
 Focus of this period is to run scripts to train Enformer model on each of our gene datasets, evaluate results, and move forward accordingly...
 
-## Training Results
+==============================================================================================================================================
+CURRENT ISSUES:
+  - got enformer layer to work by passing inputs and target
+  - now there are issues in backward; (these are fixed by unfreezing enformer layer)
+  - attempting training run w just default enformer (currently RUNNING ON ROSETTA13 TMUX tmrw)
+  - our goal is to pull embeddings from the enformer model and pass those thru two of our own linear layers
+    - ways to do this:
+      - Enformer.from_hparams(), where we pass return_only_embeddings = True to model calls
+        - run into the same sequence length != target length error (dims are properly inputted so not sure what prompts this...) 
+        - my hypothesis for this bug is that it is due to padding; even so, there is no seq in current gene that has length = 113, so not sure where that comes from
+      - en.from_pretrained() where we write our own method to pull out the embeddings
+        - 
+
+    - currently have a run on ROSETTA2 in tmux; got stuff to work by padding all genes to same length (31620) and using target length of 248 (this represents the seq length once passing thru a few convolutional layers)
+      - fails after 1 epoch bc "Disk Quota exceeded"; is there a way we can avoid saving wandb artifacts locally?
+      - quota exceeding in this dir: '/afs/csail.mit.edu/u/w/wmccrthy/.local/share/wandb/artifacts/staging/tmpa5g64rw9'
+      - implement Sean's points:
+        - remove wandb
+        - random split instead of 5 fold cross val
+        - Instead of saving train, val, train label, val label, just shuffle once. Find the threshold. Then feed in the slices to data loader without saving them to a variable
+    

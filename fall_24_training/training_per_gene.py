@@ -1,6 +1,7 @@
 import torch, numpy as np
+from enformer_pytorch import Enformer, seq_indices_to_one_hot
 from enformer_pytorch import from_pretrained
-from enformer_pytorch.finetune import HeadAdapterWrapper
+from enformer_pytorch.finetune import HeadAdapterWrapper, get_enformer_embeddings
 from torch import nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset, random_split
@@ -40,6 +41,7 @@ TO DO:
 
 gene_one2one_datasets_path = "/data/rbg/users/wmccrthy/chemistry/Everything/gene_datasets/regulatory_one2one/"
 gene_one2one_metadata_path = "/data/rbg/users/wmccrthy/chemistry/Everything/EDA/regulatory_one2one_sets_metadata.csv"
+UNIVERSAL_MAX_LEN = 31620
 
 
 def map_gene_to_metadata():
@@ -68,7 +70,6 @@ def transform4Enformer(seq, max_len):
         elif letter == "G": newseq.append(2)
         elif letter == "T": newseq.append(3)
         elif letter == "N": newseq.append(4)
-    if len(newseq) < 500: print(len(newseq))
     newseq = newseq + [-1]*(max_len - len(newseq))
     newseq = torch.tensor(newseq)
     return newseq
@@ -99,35 +100,75 @@ def stats(data):
     kurt = kurtosis(data, fisher=True, bias=False)
     return mean, std, sk, kurt
 
+def get_model_embeddings(model):
+    # Access and use only the embedding weights -> pass our inputs thru embedding weights
+    print("====================== Named Params ======================")
+    for name, param in model.named_parameters():
+        # if "embedding" in name:
+        print(name)
+        # if "embedding" in name:  # Adjust based on the exact layer names in Enformer
+        #     # Do something with `param`, e.g., copy or modify
+        #     embedding_weights = param.detach().clone()
+    print("====================== Modules ======================")
+    for module in model.modules():
+        print(module)
+
+
 class Enformer_Model(L.LightningModule):
     def __init__(self, batch_size, max_len) -> None:
         super().__init__()
-        en_pretrain = from_pretrained("EleutherAI/enformer-official-rough", 
-                                                  target_length=max_len,
-                                                   use_tf_gamma = False,
-        )
-        self.model = HeadAdapterWrapper(
-            enformer = en_pretrain,
-            num_tracks = 128,
-            post_transformer_embed = False,
+        # en_pretrain = from_pretrained("EleutherAI/enformer-official-rough", 
+        #                                           target_length=max_len,
+        #                                            use_tf_gamma = False,
+        # )
+
+        # self.model = HeadAdapterWrapper(
+        #     enformer = en_pretrain,
+        #     num_tracks = 128,
+        #     post_transformer_embed = False,
+        # )
+        dim = 1536
+        target_length = 248
+
+        self.model = Enformer.from_hparams(
+            dim = dim,
+            depth = 11,
+            heads = 8,
+            output_heads = dict(human = 5313, mouse = 1643),
+            target_length = target_length,
         )
 
         # for p in self.model.parameters(): p.requires_grad = False #freeze enformer layer
-        # DO WE WANT TO UNFREEZE THIS LAYER IF WE ARE GETTING LOSS DIRECTLY FROM ENFORMER W NO ADDITIONAL LAYERS?
+        
 
-        self.fc1 = nn.Linear(128, 1)
+        self.fc1 = nn.Linear(dim*2, 1)
         # self.dropout1 = Dropout(p=0.1) REMOVING DROPOUT FOR NOW
-        self.fc2 = nn.Linear(max_len, 1)
+        self.fc2 = nn.Linear(target_length, 1)
         # self.droupout2 = Dropout(p=0.1) REMOVING DROPOUT FOR NOW
 
     def forward(self, inputs, target):
         print("inputs shape pre-mod:", inputs.shape) #dim = (batch size, max_len) #usually (batch size, 1, max_len)
         # breakpoint()
 
-        
-        outputs = self.model(inputs, target = target) #embed first seq in batch
+        # ====================== PRE-TRAINED ======================
+        # get_model_embeddings(self)
+        # output, embeddings = self.model(inputs, target = target) # pass inputs
 
-        return outputs # ===================== TESTING THIS ======================
+        # ====================== FROM_HPARAMS ======================
+        embeddings = self.model(inputs, return_only_embeddings = True)
+        # embeddings = get_enformer_embeddings(self.model, inputs)
+
+        # print(embeddings.shape)
+        # pass embeddings thru two linear layers
+        output1 = self.fc1(embeddings)
+        # print(output1.shape)
+        output1 = torch.permute(output1, (0, 2, 1))
+        # print("permuted shape:", output1.shape)
+
+        final_output = self.fc2(output1)
+        final_output.squeeze()
+        # print(final_output.shape, final_output)
+        return final_output # ===================== TESTING THIS ======================
     
         # print(outputs)
         # print("outputs shape:", outputs.shape) # dim = (batch size, 896, 128) # usually (batch size, max_len, 768)
@@ -158,13 +199,14 @@ class Enformer_Model(L.LightningModule):
     def _shared_eval_step(self, batch, batch_idx):
         inputs, target = batch
         # print("inputs: ", inputs, len(inputs[0]), len(inputs[1]), inputs.shape)
-        output = self.forward(inputs, target)  
+        output = self.forward(inputs, target) 
+
         #print("eval input shape:",inputs.shape, "target shape :",target.shape,"output:",output.shape)
         #print("new target shape: ", reshaped_target.shape)
 
-        criterion = F.mse_loss(output, target)
-        # print("criterion:", criterion)
-        loss = torch.sqrt(criterion)
+        criterion = F.mse_loss(output, target) # IF USING JUST ENFORMER MODEL, DON'T NEED THIS
+
+        loss = torch.sqrt(criterion) # IF USING JUST ENFORMER MODEL, DON'T NEED THIS
         # print("loss:", loss) 
         return loss
 
@@ -197,29 +239,45 @@ class EnformerDataset(Dataset):
         return seq, torch.Tensor([label])
 
 def train(shuffled_training_inps, shuffled_training_labels, gene, fold, gene_max_len):
-    batch_size, num_epochs, num_dev = int(1), int(40), int(1)
+    batch_size, num_epochs, num_dev = int(1), int(10), int(1)
     
+    # ===================== Implements 5 cross-fold validation splitting ===================== 
     #split data into training and validation set
-    fold_size = len(shuffled_training_labels) // 5
-    val_start = fold*fold_size
-    val_end = (fold+1)*fold_size
-    print("indices for train: 0, ", val_start, ", and ", val_end, "to end")
-    print("indices for val: ", val_start, ", ", val_end)
-    train_dataset = shuffled_training_inps[:val_start] + shuffled_training_inps[val_end:]
-    train_labels = shuffled_training_labels[:val_start] + shuffled_training_labels[val_end:]
-    valid_dataset = shuffled_training_inps[val_start:val_end]
-    valid_labels = shuffled_training_labels[val_start:val_end]
+    # fold_size = len(shuffled_training_labels) // 5
+    # val_start = fold*fold_size
+    # val_end = (fold+1)*fold_size
+    # print("indices for train: 0, ", val_start, ", and ", val_end, "to end")
+    # print("indices for val: ", val_start, ", ", val_end)
+    # train_dataset = shuffled_training_inps[:val_start] + shuffled_training_inps[val_end:]
+    # train_labels = shuffled_training_labels[:val_start] + shuffled_training_labels[val_end:]
+    # valid_dataset = shuffled_training_inps[val_start:val_end]
+    # valid_labels = shuffled_training_labels[val_start:val_end]
     
-    train_dataset = EnformerDataset(train_dataset, train_labels)
-    valid_dataset = EnformerDataset(valid_dataset, valid_labels)
-    training_data = DataLoader(train_dataset, batch_size=batch_size, num_workers=8, drop_last = True)
-    valid_data = DataLoader(valid_dataset, batch_size=batch_size, num_workers=8, drop_last = True)
+    # train_dataset = EnformerDataset(train_dataset, train_labels)
+    # valid_dataset = EnformerDataset(valid_dataset, valid_labels)
+    # training_data = DataLoader(train_dataset, batch_size=batch_size, num_workers=8, drop_last = True)
+    # valid_data = DataLoader(valid_dataset, batch_size=batch_size, num_workers=8, drop_last = True)
     
+    # ===================== Implements random split =====================
+    # split data randomly
+    breakpoint()
+    torch.manual_seed(42)
+    train_ratio, val_ratio = 0.8, 0.2
+    cumulative_dataset = EnformerDataset(shuffled_training_inps, shuffled_training_labels)
+    train_data, val_data = random_split(cumulative_dataset, [train_ratio, val_ratio])
+    print(len(train_data), len(val_data))
+    training_data = DataLoader(train_data, batch_size=batch_size, num_workers=8, drop_last = True)
+    valid_data = DataLoader(val_data, batch_size=batch_size, num_workers=8, drop_last = True)
+
     model = Enformer_Model(batch_size, gene_max_len)
 
     os.environ["WANDB_DIR"]=os.path.abspath("/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training/wandb_dir")
-    wandb_logger = WandbLogger(log_model="all", project="split-by-gene", name = f"{gene}_{len(training_labels)}_fold_{fold}", dir = "/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training")
     
+    # ===================== FOR 5-CROSS FOLD =====================
+    # wandb_logger = WandbLogger(log_model="all", project="split-by-gene", name = f"{gene}_{len(training_labels)}_fold_{fold}", dir = "/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training")
+    # ===================== FOR RANDOM SPLIT =====================
+    wandb_logger = WandbLogger(log_model="all", project="split-by-gene", name = f"{gene}_{len(training_labels)}_random_split", dir = "/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training")
+   
     print("ready to train!")
     trainer = L.Trainer(max_epochs = num_epochs,
                         accelerator='gpu',
@@ -254,17 +312,26 @@ if __name__ == "__main__":
     #add first row
     with open(output_path, "a", newline='') as write_to:
         writer = csv.writer(write_to)
+        # ===================== FOR 5-CROSS FOLD =====================
+        # writer.writerow(["gene", "datapoints",
+        #                 "mean", "std", "skew", "kurtosis",
+        #                 "wandb", "train_f1", "train_f2", "train_f3", "train_f4",
+        #                 "train_f5", "valid_f1", "valid_f2", "valid_f3", "valid_f4",
+        #                 "valid_f5", "train_avg", "valid_avg"])
+        # ===================== FOR RANDOM SPLIT =====================
         writer.writerow(["gene", "datapoints",
                         "mean", "std", "skew", "kurtosis",
-                        "wandb", "train_f1", "train_f2", "train_f3", "train_f4",
-                        "train_f5", "valid_f1", "valid_f2", "valid_f3", "valid_f4",
-                        "valid_f5", "train_avg", "valid_avg"])
-                    
+                        "wandb", "train_loss", "valid_loss"])
+        
     for gene_path in os.listdir(gene_one2one_datasets_path):
         specific_gene = gene_path.split("_")[0] # extract specific gene from file path
         gene_num_species, gene_max_len = gene_stats[specific_gene][1:]
         gene_num_species, gene_max_len = int(gene_num_species), int(gene_max_len)
         print("starting: ", specific_gene, " num species: ", gene_num_species, " max seq len: ", gene_max_len)
+
+        # ====================== FOR CONVENIENCE, PADDING ALL GENES TO SAME LENGTH ======================
+        gene_max_len = UNIVERSAL_MAX_LEN
+
         torch.cuda.empty_cache()
 
         # get tokenized data and labels for gene
@@ -279,23 +346,32 @@ if __name__ == "__main__":
         shuffled_training_inps = [training_inps[i] for i in indices]
         shuffled_training_labels = [training_labels[i] for i in indices]
         
-        train_fold_results = []
-        valid_fold_results = []
-        #train only if gene set has representation from 300 or more species
-        if gene_num_species < 300:
+        # train_fold_results = []
+        # valid_fold_results = []
+
+        #train only if gene set has representation from 300 or more species (testing 400 rn)
+        if gene_num_species < 400:
             writeLine = [specific_gene, len(training_labels), mean, std, sk, kurt,]
         else:
-            for fold in range(5):
-                train_loss, valid_loss, wandbstr = train(shuffled_training_inps, shuffled_training_labels, specific_gene, fold, gene_max_len)
-                train_fold_results.append(train_loss)
-                valid_fold_results.append(valid_loss)
-            train_avg = sum(train_fold_results) / len(train_fold_results)
-            valid_avg = sum(valid_fold_results) / len(valid_fold_results)
-        
+            # ===================== FOR 5-CROSS FOLD =====================
+            # for fold in range(5):
+            #     train_loss, valid_loss, wandbstr = train(shuffled_training_inps, shuffled_training_labels, specific_gene, fold, gene_max_len)
+            #     train_fold_results.append(train_loss)
+            #     valid_fold_results.append(valid_loss)
+            # train_avg = sum(train_fold_results) / len(train_fold_results)
+            # valid_avg = sum(valid_fold_results) / len(valid_fold_results)
+            # print("writing line")
+            # writeLine = [specific_gene, len(training_labels), 
+            #             mean, std, sk, kurt,
+            #             wandbstr] + train_fold_results + valid_fold_results + [train_avg, valid_avg]
+            
+            # ===================== FOR RANDOM SPLIT =====================
+            train_loss, valid_loss, wandbstr = train(shuffled_training_inps, shuffled_training_labels, specific_gene, fold, gene_max_len)
             print("writing line")
             writeLine = [specific_gene, len(training_labels), 
                         mean, std, sk, kurt,
-                        wandbstr] + train_fold_results + valid_fold_results + [train_avg, valid_avg]
+                        wandbstr] + [train_loss, valid_loss]
+            
         with open(output_path, "a", newline='') as write_to:
             writer = csv.writer(write_to)
             writer.writerow(writeLine)

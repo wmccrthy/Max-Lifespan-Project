@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset, random_split
 from torch import Tensor
 import pytorch_lightning as L
-from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.loggers import WandbLogger, CSVLogger
 import wandb, os
 from torch.nn import Dropout
 from pytorch_lightning.callbacks import EarlyStopping
@@ -189,12 +189,14 @@ class Enformer_Model(L.LightningModule):
     def training_step(self, batch, batch_idx): 
         # breakpoint()
         loss = self._shared_eval_step(batch, batch_idx)
-        self.log("train_loss", loss, sync_dist=True) 
+        # self.log("train_loss", loss, sync_dist=True) ===================== FOR WANDB =====================
+        self.log("train_loss", loss, on_step=False, on_epoch=True) # ===================== FOR CSV =====================
         return loss 
 
     def validation_step(self, batch, batch_idx):
         loss = self._shared_eval_step(batch, batch_idx)
-        self.log("val_loss", loss, sync_dist=True)
+        # self.log("val_loss", loss, sync_dist=True) ===================== FOR WANDB =====================
+        self.log("val_loss", loss, on_step=False, on_epoch=True) # ===================== FOR CSV =====================
 
     def _shared_eval_step(self, batch, batch_idx):
         inputs, target = batch
@@ -260,7 +262,7 @@ def train(shuffled_training_inps, shuffled_training_labels, gene, fold, gene_max
     
     # ===================== Implements random split =====================
     # split data randomly
-    breakpoint()
+    # breakpoint()
     torch.manual_seed(42)
     train_ratio, val_ratio = 0.8, 0.2
     cumulative_dataset = EnformerDataset(shuffled_training_inps, shuffled_training_labels)
@@ -276,52 +278,57 @@ def train(shuffled_training_inps, shuffled_training_labels, gene, fold, gene_max
     # ===================== FOR 5-CROSS FOLD =====================
     # wandb_logger = WandbLogger(log_model="all", project="split-by-gene", name = f"{gene}_{len(training_labels)}_fold_{fold}", dir = "/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training")
     # ===================== FOR RANDOM SPLIT =====================
-    wandb_logger = WandbLogger(log_model="all", project="split-by-gene", name = f"{gene}_{len(training_labels)}_random_split", dir = "/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training")
-   
+    # wandb_logger = WandbLogger(log_model="all", project="split-by-gene", name = f"{gene}_{len(training_labels)}_random_split", dir = "/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training")
+    # init CSVLogger
+    csv_logger = CSVLogger("/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training/gene_training_metrics", name = f"{gene}_{len(training_labels)}_random_split")
+    
     print("ready to train!")
     trainer = L.Trainer(max_epochs = num_epochs,
                         accelerator='gpu',
                         devices=num_dev,
-                        logger=wandb_logger,
+                        # logger=wandb_logger, 
+                        logger = csv_logger,
                         )
     trainer.fit(model, training_data, valid_data)
     
-    api = wandb.Api()
-    wandb_id = wandb_logger.experiment.id
-    wandb_run_link = f"split-by-gene/{wandb_id}"
-    print(f"wandb run: {wandb_run_link}")
-    run = api.run(f"split-by-gene/{wandb_id}")
-    run = wandb.Api().run(f"{wandb_logger.experiment.project}/{wandb_id}")
-    print(run.history().columns)
-    try:
-        train_loss = run.history(keys=["train_loss"]).tail(1).iloc[0]['train_loss']
-    except:
-        train_loss = "N/A"
-    valid_loss = run.history(keys=["val_loss"]).tail(1).iloc[0]['val_loss']
-    wandb.finish()
-    return train_loss, valid_loss, wandb_run_link
+    # # ===================== FOR WANDB =====================
+    # api = wandb.Api()
+    # wandb_id = wandb_logger.experiment.id
+    # wandb_run_link = f"split-by-gene/{wandb_id}"
+    # print(f"wandb run: {wandb_run_link}")
+    # run = api.run(f"split-by-gene/{wandb_id}")
+    # run = wandb.Api().run(f"{wandb_logger.experiment.project}/{wandb_id}")
+    # print(run.history().columns)
+    # try:
+    #     train_loss = run.history(keys=["train_loss"]).tail(1).iloc[0]['train_loss']
+    # except:
+    #     train_loss = "N/A"
+    # valid_loss = run.history(keys=["val_loss"]).tail(1).iloc[0]['val_loss']
+    # wandb.finish()
+    # return train_loss, valid_loss, wandb_run_link
 
 if __name__ == "__main__":
     os.environ["TOKENIZERS_PARALLELISM"] = "false"  
     output_path = "/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training/stats_enformer_by_gene.csv"
-    
+
     # get mapping of gene:num_data, num_species, max_len
     gene_stats = map_gene_to_metadata()
+
     #clear csv
-    with open(output_path, mode='w', newline='') as file: pass
-    #add first row
-    with open(output_path, "a", newline='') as write_to:
-        writer = csv.writer(write_to)
-        # ===================== FOR 5-CROSS FOLD =====================
-        # writer.writerow(["gene", "datapoints",
-        #                 "mean", "std", "skew", "kurtosis",
-        #                 "wandb", "train_f1", "train_f2", "train_f3", "train_f4",
-        #                 "train_f5", "valid_f1", "valid_f2", "valid_f3", "valid_f4",
-        #                 "valid_f5", "train_avg", "valid_avg"])
-        # ===================== FOR RANDOM SPLIT =====================
-        writer.writerow(["gene", "datapoints",
-                        "mean", "std", "skew", "kurtosis",
-                        "wandb", "train_loss", "valid_loss"])
+    # with open(output_path, mode='w', newline='') as file: pass
+    # #add first row
+    # with open(output_path, "a", newline='') as write_to:
+    #     writer = csv.writer(write_to)
+    #     # ===================== FOR 5-CROSS FOLD =====================
+    #     # writer.writerow(["gene", "datapoints",
+    #     #                 "mean", "std", "skew", "kurtosis",
+    #     #                 "wandb", "train_f1", "train_f2", "train_f3", "train_f4",
+    #     #                 "train_f5", "valid_f1", "valid_f2", "valid_f3", "valid_f4",
+    #     #                 "valid_f5", "train_avg", "valid_avg"])
+    #     # ===================== FOR RANDOM SPLIT =====================
+    #     writer.writerow(["gene", "datapoints",
+    #                     "mean", "std", "skew", "kurtosis",
+    #                     "wandb", "train_loss", "valid_loss"])
         
     for gene_path in os.listdir(gene_one2one_datasets_path):
         specific_gene = gene_path.split("_")[0] # extract specific gene from file path
@@ -351,7 +358,8 @@ if __name__ == "__main__":
 
         #train only if gene set has representation from 300 or more species (testing 400 rn)
         if gene_num_species < 400:
-            writeLine = [specific_gene, len(training_labels), mean, std, sk, kurt,]
+            # writeLine = [specific_gene, len(training_labels), mean, std, sk, kurt,]
+            continue
         else:
             # ===================== FOR 5-CROSS FOLD =====================
             # for fold in range(5):
@@ -366,12 +374,13 @@ if __name__ == "__main__":
             #             wandbstr] + train_fold_results + valid_fold_results + [train_avg, valid_avg]
             
             # ===================== FOR RANDOM SPLIT =====================
-            train_loss, valid_loss, wandbstr = train(shuffled_training_inps, shuffled_training_labels, specific_gene, fold, gene_max_len)
-            print("writing line")
-            writeLine = [specific_gene, len(training_labels), 
-                        mean, std, sk, kurt,
-                        wandbstr] + [train_loss, valid_loss]
+            # train_loss, valid_loss, wandbstr = train(shuffled_training_inps, shuffled_training_labels, specific_gene, -1, gene_max_len) # ===================== FOR WANDB =====================
+            train(shuffled_training_inps, shuffled_training_labels, specific_gene, -1, gene_max_len) # ===================== FOR CSV =====================
+            # print("writing line")
+            # writeLine = [specific_gene, len(training_labels), 
+            #             mean, std, sk, kurt,
+            #             wandbstr] + [train_loss, valid_loss]
             
-        with open(output_path, "a", newline='') as write_to:
-            writer = csv.writer(write_to)
-            writer.writerow(writeLine)
+        # with open(output_path, "a", newline='') as write_to:
+        #     writer = csv.writer(write_to)
+        #     writer.writerow(writeLine)

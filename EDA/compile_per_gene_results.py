@@ -35,16 +35,35 @@ def scrape_metrics(path):
     return train_loss, val_loss, val_min
 
 """
+Iterates through gene result directories and outputs organized CSV with all results.
+"""
+def compile_results():
+    with open(TRAINING_DIR + "per_gene_results.csv", "w") as write_to:
+        writer = csv.writer(write_to)
+        writer.writerow(["gene", "avg train loss", "avg val loss", "min val loss"])
+        for sub_dir in os.listdir(RESULTS_DIR):
+            gene = sub_dir.split("_")[0]
+            avg_train, avg_val, val_min = scrape_metrics(RESULTS_DIR + "/" + sub_dir)
+            print(gene, avg_train, avg_val, val_min)
+            writer.writerow([gene, avg_train, avg_val, val_min])
 
 """
-with open(TRAINING_DIR + "per_gene_results.csv", "w") as write_to:
-    writer = csv.writer(write_to)
-    writer.writerow(["gene", "avg train loss", "avg val loss", "min val loss"])
-    for sub_dir in os.listdir(RESULTS_DIR):
-        gene = sub_dir.split("_")[0]
-        avg_train, avg_val, val_min = scrape_metrics(RESULTS_DIR + "/" + sub_dir)
-        print(gene, avg_train, avg_val, val_min)
-        writer.writerow([gene, avg_train, avg_val, val_min])
+Returns list of tuples of results by parsing "per_gene_results.csv" 
+Format is: List[(gene, train_avg_loss, val_avg_loss, val_min_loss)]
+"""
+def get_results():
+    results = []
+    # iterate thru organized results CSV to create dataset
+    with open(TRAINING_DIR + "per_gene_results.csv") as read_from:
+        for line in read_from:
+            line = line.split(",")
+            if line[0] == "gene": continue #skip first row
+            results.append(line) # add line to results list (format: gene, train_avg, val_avg, val_min)
+    return results
+        
+
+
+
 
 
 

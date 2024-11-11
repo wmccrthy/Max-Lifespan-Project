@@ -12,7 +12,7 @@ import wandb, os
 from torch.nn import Dropout
 from pytorch_lightning.callbacks import EarlyStopping
 from scipy.stats import kurtosis, skew
-import csv
+import csv, sys
 
 """
 This script is informed by EDA we ran to trim cumulative dataset s.t we only have one2one sequences of lengths between 104 and 31620
@@ -280,7 +280,7 @@ def train(shuffled_training_inps, shuffled_training_labels, gene, fold, gene_max
     # ===================== FOR RANDOM SPLIT =====================
     # wandb_logger = WandbLogger(log_model="all", project="split-by-gene", name = f"{gene}_{len(training_labels)}_random_split", dir = "/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training")
     # init CSVLogger
-    csv_logger = CSVLogger("/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training/gene_training_metrics", name = f"{gene}_{len(training_labels)}_random_split")
+    csv_logger = CSVLogger("/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training/gene_training_metrics", name = f"{gene}_{len(cumulative_dataset)}_random_split")
     
     print("ready to train!")
     trainer = L.Trainer(max_epochs = num_epochs,
@@ -307,7 +307,11 @@ def train(shuffled_training_inps, shuffled_training_labels, gene, fold, gene_max
     # wandb.finish()
     # return train_loss, valid_loss, wandb_run_link
 
-if __name__ == "__main__":
+
+"""
+
+"""
+def train_all_genes():
     os.environ["TOKENIZERS_PARALLELISM"] = "false"  
     output_path = "/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training/stats_enformer_by_gene.csv"
 
@@ -384,3 +388,49 @@ if __name__ == "__main__":
         # with open(output_path, "a", newline='') as write_to:
         #     writer = csv.writer(write_to)
         #     writer.writerow(writeLine)
+
+
+def train_single_gene(gene):
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"  
+
+    # get mapping of gene:num_data, num_species, max_len
+    gene_stats = map_gene_to_metadata()
+        
+    for gene_path in os.listdir(gene_one2one_datasets_path): 
+        specific_gene = gene_path.split("_")[0] # extract specific gene from file path
+
+        if specific_gene != gene: 
+            print("skipping", specific_gene)
+            continue # iterate until we find gene of interest
+
+        gene_num_species, gene_max_len = gene_stats[specific_gene][1:]
+        gene_num_species, gene_max_len = int(gene_num_species), int(gene_max_len)
+        print("starting: ", specific_gene, " num species: ", gene_num_species, " max seq len: ", gene_max_len)
+
+        # ====================== FOR CONVENIENCE, PADDING ALL GENES TO SAME LENGTH ======================
+        gene_max_len = UNIVERSAL_MAX_LEN
+
+        torch.cuda.empty_cache()
+
+        # get tokenized data and labels for gene
+        full_gene_path = gene_one2one_datasets_path + gene_path
+        training_inps, training_labels = prepare4Enformer(full_gene_path, gene_max_len)
+        print("length of data: ", len(training_inps), len(training_labels))
+
+        #shuffle dataset
+        indices = np.arange(len(training_labels))
+        np.random.shuffle(indices)
+        shuffled_training_inps = [training_inps[i] for i in indices]
+        shuffled_training_labels = [training_labels[i] for i in indices]
+        
+        train(shuffled_training_inps, shuffled_training_labels, specific_gene, -1, gene_max_len)
+            
+
+
+if __name__ == "__main__":
+    args = sys.argv
+    print(args)
+    # args[0] = current file
+    # args[1] = function name
+    # args[2:] = function args : (*unpacked)
+    globals()[args[1]](*args[2:])

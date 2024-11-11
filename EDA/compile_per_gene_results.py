@@ -1,4 +1,5 @@
-import os, csv, sys
+import os, csv, sys, numpy as np
+import matplotlib.pyplot as plt
 
 
 """
@@ -8,15 +9,15 @@ Loops through directories (corresponding to genes in:
 
 
 """
-
 RESULTS_DIR = "/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training/gene_training_metrics/"
 TRAINING_DIR = "/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training/"
+GENE_LOSS_DIR =  "/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training/loss_plots/"
 
 """
 Given a gene's training results directory, scrapes the metric file to return:
     avg train loss, avg val loss, min val loss
 """
-def scrape_metrics(path):
+def scrape_metrics(path, per_epoch = False):
     train_losses, val_losses = [], []
     i = 0
     val_min = float("inf")
@@ -32,6 +33,7 @@ def scrape_metrics(path):
     train_loss = sum(train_losses)/len(train_losses)
     val_loss = sum(val_losses)/len(val_losses)
     val_min = min(val_losses)
+    if per_epoch: return train_losses, val_losses
     return train_loss, val_loss, val_min
 
 """
@@ -51,16 +53,97 @@ def compile_results():
 Returns list of tuples of results by parsing "per_gene_results.csv" 
 Format is: List[(gene, train_avg_loss, val_avg_loss, val_min_loss)]
 """
-def get_results():
+def get_results(is_dict = False):
     results = []
+    if is_dict: results = {}
     # iterate thru organized results CSV to create dataset
     with open(TRAINING_DIR + "per_gene_results.csv") as read_from:
         for line in read_from:
             line = line.split(",")
             if line[0] == "gene": continue #skip first row
-            results.append(line) # add line to results list (format: gene, train_avg, val_avg, val_min)
+            if not is_dict: results.append(line) # add line to results list (format: gene, train_avg, val_avg, val_min)
+            else: results[line[0]] = (line[1:]) # add line to results list (format: gene, train_avg, val_avg, val_min)
     return results
         
+
+"""
+Plot Min Val Loss
+"""
+def plot_min_val():
+    training_results = get_results()
+
+    # trim training results so we're only plotting best genes (those w val loss < 10)
+    training_results = [i for i in training_results if float(i[-1]) <= 10]
+
+    labels, values = [i[0] for i in training_results], [float(i[-1]) for i in training_results]
+    plt.figure(figsize=(14, 8))
+    plt.bar(labels, values)
+
+    # Set labels and title
+    plt.xlabel("Gene")
+    plt.ylabel("Min Validation Loss")
+    plt.title("Minimum Validation Loss per Gene")
+
+    # Rotate gene names if needed for readability
+    plt.xticks(rotation=45, ha="right")
+
+    # Add grid for better readability
+    plt.grid(visible=True, axis='y', linestyle='--', alpha=0.7)
+
+    # Display the plot
+    # plt.tight_layout()
+    plt.show()
+    plt.savefig("per_gene_min_val_loss.png")
+    
+
+"""
+Method to plot train loss and val loss for given gene (one plot per gene)
+"""
+def plot_gene_loss(gene, path = None):
+    # get results for a given gene
+    train_losses, val_losses = [], []
+    if not path:
+        for sub_dir in os.listdir(RESULTS_DIR):
+                cur_gene = sub_dir.split("_")[0]
+                if cur_gene == gene:
+                    train_losses, val_losses = scrape_metrics(RESULTS_DIR + sub_dir, per_epoch = True)
+                    break
+    else:
+        train_losses, val_losses = scrape_metrics(path, per_epoch = True)
+
+    plt.figure(figsize=(10, 6))  # Set figure size
+    plt.plot([i for i in range(len(train_losses))], train_losses, marker='o', linestyle='-', color='blue', label = "training")  # Plot with markers
+    plt.plot([i for i in range(len(val_losses))], val_losses, marker='o', linestyle='-', color='green', label = "validation")  # Plot with markers
+    plt.legend(loc = "upper right")
+    # Set labels and title
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.title("Training and Validation Loss for " + gene)
+
+    # Add grid for better readability
+    plt.grid(visible=True)
+
+    # Display the plot
+    plt.tight_layout()
+    plt.show()
+    plt.savefig(GENE_LOSS_DIR + gene + "_loss.png")
+    plt.close()
+
+"""
+Iterate through results dir and plot train/val loss for each gene
+"""
+def plot_all_gene_losses():
+    for sub_dir in os.listdir(RESULTS_DIR):
+            gene = sub_dir.split("_")[0]
+            plot_gene_loss(gene, path = RESULTS_DIR + "/" + sub_dir)
+
+if __name__ == "__main__":
+    args = sys.argv
+    print(args)
+    # args[0] = current file
+    # args[1] = function name
+    # args[2:] = function args : (*unpacked)
+    globals()[args[1]](*args[2:])
 
 
 

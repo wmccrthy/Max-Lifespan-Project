@@ -100,7 +100,7 @@ def stats(data):
     kurt = kurtosis(data, fisher=True, bias=False)
     return mean, std, sk, kurt
 
-def get_model_embeddings(model):
+def get_model_params(model):
     # Access and use only the embedding weights -> pass our inputs thru embedding weights
     print("====================== Named Params ======================")
     for name, param in model.named_parameters():
@@ -127,8 +127,9 @@ class Enformer_Model(L.LightningModule):
         #     num_tracks = 128,
         #     post_transformer_embed = False,
         # )
+
         dim = 1536
-        target_length = 248
+        target_length = 248 # target length for input seq length of 31620
 
         self.model = Enformer.from_hparams(
             dim = dim,
@@ -140,18 +141,16 @@ class Enformer_Model(L.LightningModule):
 
         # for p in self.model.parameters(): p.requires_grad = False #freeze enformer layer
         
-
         self.fc1 = nn.Linear(dim*2, 1)
-        # self.dropout1 = Dropout(p=0.1) REMOVING DROPOUT FOR NOW
+        self.dropout1 = Dropout(p=0.1)
         self.fc2 = nn.Linear(target_length, 1)
-        # self.droupout2 = Dropout(p=0.1) REMOVING DROPOUT FOR NOW
+        self.droupout2 = Dropout(p=0.1)
 
     def forward(self, inputs, target):
         print("inputs shape pre-mod:", inputs.shape) #dim = (batch size, max_len) #usually (batch size, 1, max_len)
         # breakpoint()
 
         # ====================== PRE-TRAINED ======================
-        # get_model_embeddings(self)
         # output, embeddings = self.model(inputs, target = target) # pass inputs
 
         # ====================== FROM_HPARAMS ======================
@@ -162,29 +161,14 @@ class Enformer_Model(L.LightningModule):
         # pass embeddings thru two linear layers
         output1 = self.fc1(embeddings)
         # print(output1.shape)
+        output1 = self.dropout1(output1)
         output1 = torch.permute(output1, (0, 2, 1))
         # print("permuted shape:", output1.shape)
 
-        final_output = self.fc2(output1)
+        final_output = self.droupout2(self.fc2(output1))
         final_output.squeeze()
         # print(final_output.shape, final_output)
-        return final_output # ===================== TESTING THIS ======================
-    
-        # print(outputs)
-        # print("outputs shape:", outputs.shape) # dim = (batch size, 896, 128) # usually (batch size, max_len, 768)
-
-        # output1 = self.fc1(outputs) #dim = (batch size, 896, 1)
-
-        # # output1 = self.dropout1(output1) REMOVING DROPOUTS FOR NOW
-
-        # output1 = output1.squeeze(-1)
-        # final_output = self.fc2(output1) #dim = (batch size, 1)
-
-        # # final_output = self.droupout2(final_output) REMOVING DROPOUTS FOR NOW
-
-        # #print("final output shape:", final_output.shape)
-
-        # return final_output 
+        return final_output
 
     def training_step(self, batch, batch_idx): 
         # breakpoint()
@@ -206,9 +190,9 @@ class Enformer_Model(L.LightningModule):
         #print("eval input shape:",inputs.shape, "target shape :",target.shape,"output:",output.shape)
         #print("new target shape: ", reshaped_target.shape)
 
-        criterion = F.mse_loss(output, target) # IF USING JUST ENFORMER MODEL, DON'T NEED THIS
+        criterion = F.mse_loss(output, target)
 
-        loss = torch.sqrt(criterion) # IF USING JUST ENFORMER MODEL, DON'T NEED THIS
+        loss = torch.sqrt(criterion)
         # print("loss:", loss) 
         return loss
 
@@ -243,7 +227,7 @@ class EnformerDataset(Dataset):
 def train(shuffled_training_inps, shuffled_training_labels, gene, fold, gene_max_len):
     batch_size, num_epochs, num_dev = int(1), int(10), int(1)
     
-    # ===================== Implements 5 cross-fold validation splitting ===================== 
+    # ===================== Implements 5 cross fold validation splitting ===================== 
     #split data into training and validation set
     # fold_size = len(shuffled_training_labels) // 5
     # val_start = fold*fold_size

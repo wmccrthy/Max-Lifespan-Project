@@ -33,8 +33,9 @@ def scrape_metrics(path, per_epoch = False):
     train_loss = sum(train_losses)/len(train_losses)
     val_loss = sum(val_losses)/len(val_losses)
     val_min = min(val_losses)
+    train_min = min(train_losses)
     if per_epoch: return train_losses, val_losses
-    return train_loss, val_loss, val_min
+    return train_loss, train_min, val_loss, val_min
 
 """
 Iterates through gene result directories and outputs organized CSV with all results.
@@ -42,12 +43,12 @@ Iterates through gene result directories and outputs organized CSV with all resu
 def compile_results():
     with open(TRAINING_DIR + "per_gene_results.csv", "w") as write_to:
         writer = csv.writer(write_to)
-        writer.writerow(["gene", "avg train loss", "avg val loss", "min val loss"])
+        writer.writerow(["gene", "avg train loss", "min train loss", "avg val loss", "min val loss"])
         for sub_dir in os.listdir(RESULTS_DIR):
             gene = sub_dir.split("_")[0]
-            avg_train, avg_val, val_min = scrape_metrics(RESULTS_DIR + "/" + sub_dir)
-            print(gene, avg_train, avg_val, val_min)
-            writer.writerow([gene, avg_train, avg_val, val_min])
+            avg_train, train_min, avg_val, val_min = scrape_metrics(RESULTS_DIR + "/" + sub_dir)
+            print(gene, avg_train, train_min, avg_val, val_min)
+            writer.writerow([gene, avg_train, train_min, avg_val, val_min])
 
 """
 Returns list of tuples of results by parsing "per_gene_results.csv" 
@@ -61,10 +62,14 @@ def get_results(is_dict = False):
         for line in read_from:
             line = line.split(",")
             if line[0] == "gene": continue #skip first row
-            if not is_dict: results.append(line) # add line to results list (format: gene, train_avg, val_avg, val_min)
-            else: results[line[0]] = (line[1:]) # add line to results list (format: gene, train_avg, val_avg, val_min)
+            if not is_dict: results.append(line) # add line to results list (format: gene, train_avg, train_min, val_avg, val_min)
+            else: results[line[0]] = (line[1:]) # add line to results list (format: gene, train_avg, train_min, val_avg, val_min)
     return results
-        
+
+def results_by_train_loss():
+    arr = sorted(get_results(), key = lambda x:float(x[2])) # sorts results by min train loss
+    for i in arr: print(i)
+
 
 """
 Plot Min Val Loss
@@ -94,7 +99,7 @@ def plot_min_val():
     # plt.tight_layout()
     plt.show()
     plt.savefig("per_gene_min_val_loss.png")
-    
+
 
 """
 Method to plot train loss and val loss for given gene (one plot per gene)

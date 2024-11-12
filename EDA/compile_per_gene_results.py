@@ -72,7 +72,7 @@ def results_by_train_loss():
 
 
 """
-Plot Min Val Loss
+Plot min val loss by gene
 """
 def plot_min_val():
     training_results = get_results()
@@ -99,6 +99,35 @@ def plot_min_val():
     # plt.tight_layout()
     plt.show()
     plt.savefig("per_gene_min_val_loss.png")
+
+"""
+Plot min training loss by gene
+"""
+def plot_min_train():
+    training_results = get_results()
+
+    # trim training results so we're only plotting best genes (those w min training loss <= 7)
+    training_results = [i for i in training_results if float(i[2]) <= 7]
+
+    labels, values = [i[0] for i in training_results], [float(i[2]) for i in training_results]
+    plt.figure(figsize=(14, 8))
+    plt.bar(labels, values)
+
+    # Set labels and title
+    plt.xlabel("Gene")
+    plt.ylabel("Min Training Loss")
+    plt.title("Minimum Training Loss per Gene")
+
+    # Rotate gene names if needed for readability
+    plt.xticks(rotation=45, ha="right")
+
+    # Add grid for better readability
+    plt.grid(visible=True, axis='y', linestyle='--', alpha=0.7)
+
+    # Display the plot
+    # plt.tight_layout()
+    plt.show()
+    plt.savefig("per_gene_min_train_loss.png")
 
 
 """

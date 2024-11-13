@@ -139,7 +139,7 @@ class Enformer_Model(L.LightningModule):
             target_length = target_length,
         )
 
-        # for p in self.model.parameters(): p.requires_grad = False #freeze enformer layer
+        for p in self.model.parameters(): p.requires_grad = False #freeze enformer layer
         
         self.fc1 = nn.Linear(dim*2, 1)
         self.dropout1 = Dropout(p=0.1)
@@ -147,7 +147,7 @@ class Enformer_Model(L.LightningModule):
         self.droupout2 = Dropout(p=0.1)
 
     def forward(self, inputs, target):
-        print("inputs shape pre-mod:", inputs.shape) #dim = (batch size, max_len) #usually (batch size, 1, max_len)
+        # print("inputs shape pre-mod:", inputs.shape) #dim = (batch size, max_len) #usually (batch size, 1, max_len)
         # breakpoint()
 
         # ====================== PRE-TRAINED ======================
@@ -198,11 +198,11 @@ class Enformer_Model(L.LightningModule):
 
     def configure_optimizers(self):
         # EXPERIMENT W ADAM and SGD
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-4, weight_decay=1e-5)
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3, weight_decay=1e-5)
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
-                "scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer),
+                "scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=2, min_lr=1e-5),
                 "monitor": "val_loss",
                 "frequency": 1
             }
@@ -224,7 +224,7 @@ class EnformerDataset(Dataset):
         # return torch.tensor(seq, dtype=torch.int64), torch.Tensor([label]) # seq should already be in tensor form, so try returning diff vals
         return seq, torch.Tensor([label])
 
-def train(shuffled_training_inps, shuffled_training_labels, gene, fold, gene_max_len):
+def train(shuffled_training_inps, shuffled_training_labels, gene, fold, gene_max_len, tag = None):
     batch_size, num_epochs, num_dev = int(1), int(10), int(1)
     
     # ===================== Implements 5 cross fold validation splitting ===================== 
@@ -263,13 +263,35 @@ def train(shuffled_training_inps, shuffled_training_labels, gene, fold, gene_max
     # wandb_logger = WandbLogger(log_model="all", project="split-by-gene", name = f"{gene}_{len(training_labels)}_fold_{fold}", dir = "/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training")
     # ===================== FOR RANDOM SPLIT =====================
     # wandb_logger = WandbLogger(log_model="all", project="split-by-gene", name = f"{gene}_{len(training_labels)}_random_split", dir = "/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training")
-    # init CSVLogger
-    csv_logger = CSVLogger("/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training/gene_training_metrics", name = f"{gene}_{len(cumulative_dataset)}_random_split")
     
+    if tag: tag = "_" + tag
+    else: tag = ""
+    log_dir = f"/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training/gene_training_metrics{tag}"
+    # check if CSVLogger directory exists 
+    # Check if the directory exists
+    if not os.path.exists(log_dir):
+        # Create the directory if it doesn't exist
+        os.makedirs(log_dir)
+        print(f"Directory '{log_dir}' created.")
+    else:
+        print(f"Directory '{log_dir}' already exists.")
+
+    # init CSVLogger
+    csv_logger = CSVLogger(log_dir, name = f"{gene}_{len(cumulative_dataset)}_random_split")
+    
+    # init EarlyStopping
+    early_stopping = EarlyStopping(
+        monitor="val_loss",     # metric to monitor
+        patience=3,             # number of epochs with no improvement after which training will be stopped
+        verbose=True,
+        mode="min"              # "min" because you want to stop when val_loss stops decreasing
+    )
+
     print("ready to train!")
     trainer = L.Trainer(max_epochs = num_epochs,
                         accelerator='gpu',
                         devices=num_dev,
+                        callbacks = [early_stopping],
                         # logger=wandb_logger, 
                         logger = csv_logger,
                         )
@@ -295,7 +317,7 @@ def train(shuffled_training_inps, shuffled_training_labels, gene, fold, gene_max
 """
 
 """
-def train_all_genes():
+def train_all_genes(tag = None):
     os.environ["TOKENIZERS_PARALLELISM"] = "false"  
     output_path = "/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training/stats_enformer_by_gene.csv"
 
@@ -363,7 +385,7 @@ def train_all_genes():
             
             # ===================== FOR RANDOM SPLIT =====================
             # train_loss, valid_loss, wandbstr = train(shuffled_training_inps, shuffled_training_labels, specific_gene, -1, gene_max_len) # ===================== FOR WANDB =====================
-            train(shuffled_training_inps, shuffled_training_labels, specific_gene, -1, gene_max_len) # ===================== FOR CSV =====================
+            train(shuffled_training_inps, shuffled_training_labels, specific_gene, -1, gene_max_len, tag) # ===================== FOR CSV =====================
             # print("writing line")
             # writeLine = [specific_gene, len(training_labels), 
             #             mean, std, sk, kurt,

@@ -9,7 +9,7 @@ Loops through directories (corresponding to genes in:
 
 
 """
-RESULTS_DIR = "/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training/gene_training_metrics/"
+RESULTS_DIR = "/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training/gene_training_metrics"
 TRAINING_DIR = "/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training/"
 GENE_LOSS_DIR =  "/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training/loss_plots/"
 
@@ -40,13 +40,16 @@ def scrape_metrics(path, per_epoch = False):
 """
 Iterates through gene result directories and outputs organized CSV with all results.
 """
-def compile_results():
-    with open(TRAINING_DIR + "per_gene_results.csv", "w") as write_to:
+def compile_results(tag = None):
+    if tag: tag = "_" + tag
+    else: tag = ""
+    results_dir = TRAINING_DIR + f"per_gene_results{tag}.csv"
+    with open(results_dir, "w") as write_to:
         writer = csv.writer(write_to)
         writer.writerow(["gene", "avg train loss", "min train loss", "avg val loss", "min val loss"])
-        for sub_dir in os.listdir(RESULTS_DIR):
+        for sub_dir in os.listdir(RESULTS_DIR + tag + "/"):
             gene = sub_dir.split("_")[0]
-            avg_train, train_min, avg_val, val_min = scrape_metrics(RESULTS_DIR + "/" + sub_dir)
+            avg_train, train_min, avg_val, val_min = scrape_metrics(RESULTS_DIR + tag + "/" + sub_dir)
             print(gene, avg_train, train_min, avg_val, val_min)
             writer.writerow([gene, avg_train, train_min, avg_val, val_min])
 
@@ -54,11 +57,14 @@ def compile_results():
 Returns list of tuples of results by parsing "per_gene_results.csv" 
 Format is: List[(gene, train_avg_loss, val_avg_loss, val_min_loss)]
 """
-def get_results(is_dict = False):
+def get_results(is_dict = False, tag = None):
     results = []
     if is_dict: results = {}
+    if tag: tag = "_" + tag
+    else: tag = ""
+    results_dir = TRAINING_DIR + f"per_gene_results{tag}.csv"
     # iterate thru organized results CSV to create dataset
-    with open(TRAINING_DIR + "per_gene_results.csv") as read_from:
+    with open(results_dir) as read_from:
         for line in read_from:
             line = line.split(",")
             if line[0] == "gene": continue #skip first row
@@ -74,8 +80,8 @@ def results_by_train_loss():
 """
 Plot min val loss by gene
 """
-def plot_min_val():
-    training_results = get_results()
+def plot_min_val(tag = None):
+    training_results = get_results(tag = tag)
 
     # trim training results so we're only plotting best genes (those w val loss < 10)
     training_results = [i for i in training_results if float(i[-1]) <= 10]
@@ -103,8 +109,8 @@ def plot_min_val():
 """
 Plot min training loss by gene
 """
-def plot_min_train():
-    training_results = get_results()
+def plot_min_train(tag = None):
+    training_results = get_results(tag = tag)
 
     # trim training results so we're only plotting best genes (those w min training loss <= 7)
     training_results = [i for i in training_results if float(i[2]) <= 7]
@@ -133,7 +139,7 @@ def plot_min_train():
 """
 Method to plot train loss and val loss for given gene (one plot per gene)
 """
-def plot_gene_loss(gene, path = None):
+def plot_gene_loss(gene, path = None, tag = None):
     # get results for a given gene
     train_losses, val_losses = [], []
     if not path:
@@ -152,7 +158,7 @@ def plot_gene_loss(gene, path = None):
     # Set labels and title
     plt.xlabel("Epoch")
     plt.ylabel("Loss")
-    plt.title("Training and Validation Loss for " + gene)
+    plt.title("Training and Validation Loss for " + gene + f" ({tag})")
 
     # Add grid for better readability
     plt.grid(visible=True)
@@ -160,16 +166,19 @@ def plot_gene_loss(gene, path = None):
     # Display the plot
     plt.tight_layout()
     plt.show()
-    plt.savefig(GENE_LOSS_DIR + gene + "_loss.png")
+    if not tag: tag = ""
+    plt.savefig(GENE_LOSS_DIR + gene + f"_loss{tag}.png")
     plt.close()
 
 """
 Iterate through results dir and plot train/val loss for each gene
 """
-def plot_all_gene_losses():
-    for sub_dir in os.listdir(RESULTS_DIR):
+def plot_all_gene_losses(tag = None):
+    if tag: tag = "_" + tag
+    else: tag = ""
+    for sub_dir in os.listdir(RESULTS_DIR + tag + "/"):
             gene = sub_dir.split("_")[0]
-            plot_gene_loss(gene, path = RESULTS_DIR + "/" + sub_dir)
+            plot_gene_loss(gene, path = RESULTS_DIR + tag + "/" + sub_dir, tag = tag)
 
 if __name__ == "__main__":
     args = sys.argv

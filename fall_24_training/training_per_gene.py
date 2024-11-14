@@ -113,6 +113,19 @@ def get_model_params(model):
     for module in model.modules():
         print(module)
 
+class MLP(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim, dropout_prob=0.1):
+        super(MLP, self).__init__()
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.dropout = nn.Dropout(dropout_prob)
+        self.fc2 = nn.Linear(hidden_dim, output_dim)
+
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        x = self.dropout(x)
+        x = self.fc2(x)
+        return x
+
 
 class Enformer_Model(L.LightningModule):
     def __init__(self, batch_size, max_len) -> None:
@@ -139,12 +152,15 @@ class Enformer_Model(L.LightningModule):
             target_length = target_length,
         )
 
-        for p in self.model.parameters(): p.requires_grad = False #freeze enformer layer
+        # for p in self.model.parameters(): p.requires_grad = False #freeze enformer layer
         
         self.fc1 = nn.Linear(dim*2, 1)
-        self.dropout1 = Dropout(p=0.1)
-        self.fc2 = nn.Linear(target_length, 1)
-        self.droupout2 = Dropout(p=0.1)
+        # self.dropout1 = Dropout(p=0.1)
+
+        # self.fc2 = nn.Linear(target_length, 1)
+        # self.droupout2 = Dropout(p=0.1)
+
+        self.mlp = MLP(input_dim=target_length, hidden_dim=128, output_dim=1, dropout_prob=0.1)
 
     def forward(self, inputs, target):
         # print("inputs shape pre-mod:", inputs.shape) #dim = (batch size, max_len) #usually (batch size, 1, max_len)
@@ -156,17 +172,18 @@ class Enformer_Model(L.LightningModule):
         # ====================== FROM_HPARAMS ======================
         embeddings = self.model(inputs, return_only_embeddings = True)
         # embeddings = get_enformer_embeddings(self.model, inputs)
-
         # print(embeddings.shape)
-        # pass embeddings thru two linear layers
+
+        # pass embeddings thru a linear layer and mlp layer
         output1 = self.fc1(embeddings)
         # print(output1.shape)
-        output1 = self.dropout1(output1)
+        # output1 = self.dropout1(output1) 
         output1 = torch.permute(output1, (0, 2, 1))
         # print("permuted shape:", output1.shape)
 
-        final_output = self.droupout2(self.fc2(output1))
-        final_output.squeeze()
+        # final_output = self.droupout2(self.fc2(output1))
+        # final_output = self.fc2(output1)
+        final_output = self.mlp(output1)
         # print(final_output.shape, final_output)
         return final_output
 
@@ -198,11 +215,11 @@ class Enformer_Model(L.LightningModule):
 
     def configure_optimizers(self):
         # EXPERIMENT W ADAM and SGD
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3, weight_decay=1e-5)
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-4, weight_decay=1e-5)
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
-                "scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=2, min_lr=1e-5),
+                "scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, min_lr=1e-5),
                 "monitor": "val_loss",
                 "frequency": 1
             }
@@ -319,7 +336,7 @@ def train(shuffled_training_inps, shuffled_training_labels, gene, fold, gene_max
 """
 def train_all_genes(tag = None):
     os.environ["TOKENIZERS_PARALLELISM"] = "false"  
-    output_path = "/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training/stats_enformer_by_gene.csv"
+    # output_path = "/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training/stats_enformer_by_gene.csv"
 
     # get mapping of gene:num_data, num_species, max_len
     gene_stats = map_gene_to_metadata()
@@ -346,6 +363,12 @@ def train_all_genes(tag = None):
         gene_num_species, gene_max_len = int(gene_num_species), int(gene_max_len)
         print("starting: ", specific_gene, " num species: ", gene_num_species, " max seq len: ", gene_max_len)
 
+        #train only if gene set has representation from 300 or more species (ensure we perform this check bfore tokenizing and pre-processing data)
+        if gene_num_species < 400:
+            print("skipping", specific_gene, "")
+            # writeLine = [specific_gene, len(training_labels), mean, std, sk, kurt,]
+            continue
+
         # ====================== FOR CONVENIENCE, PADDING ALL GENES TO SAME LENGTH ======================
         gene_max_len = UNIVERSAL_MAX_LEN
 
@@ -355,7 +378,7 @@ def train_all_genes(tag = None):
         full_gene_path = gene_one2one_datasets_path + gene_path
         training_inps, training_labels = prepare4Enformer(full_gene_path, gene_max_len)
         print("length of data: ", len(training_inps), len(training_labels))
-        mean, std, sk, kurt = stats(training_labels)
+        # mean, std, sk, kurt = stats(training_labels)
 
         #shuffle dataset
         indices = np.arange(len(training_labels))
@@ -365,31 +388,25 @@ def train_all_genes(tag = None):
         
         # train_fold_results = []
         # valid_fold_results = []
-
-        #train only if gene set has representation from 300 or more species (testing 400 rn)
-        if gene_num_species < 400:
-            # writeLine = [specific_gene, len(training_labels), mean, std, sk, kurt,]
-            continue
-        else:
-            # ===================== FOR 5-CROSS FOLD =====================
-            # for fold in range(5):
-            #     train_loss, valid_loss, wandbstr = train(shuffled_training_inps, shuffled_training_labels, specific_gene, fold, gene_max_len)
-            #     train_fold_results.append(train_loss)
-            #     valid_fold_results.append(valid_loss)
-            # train_avg = sum(train_fold_results) / len(train_fold_results)
-            # valid_avg = sum(valid_fold_results) / len(valid_fold_results)
-            # print("writing line")
-            # writeLine = [specific_gene, len(training_labels), 
-            #             mean, std, sk, kurt,
-            #             wandbstr] + train_fold_results + valid_fold_results + [train_avg, valid_avg]
-            
-            # ===================== FOR RANDOM SPLIT =====================
-            # train_loss, valid_loss, wandbstr = train(shuffled_training_inps, shuffled_training_labels, specific_gene, -1, gene_max_len) # ===================== FOR WANDB =====================
-            train(shuffled_training_inps, shuffled_training_labels, specific_gene, -1, gene_max_len, tag) # ===================== FOR CSV =====================
-            # print("writing line")
-            # writeLine = [specific_gene, len(training_labels), 
-            #             mean, std, sk, kurt,
-            #             wandbstr] + [train_loss, valid_loss]
+        # ===================== FOR 5-CROSS FOLD =====================
+        # for fold in range(5):
+        #     train_loss, valid_loss, wandbstr = train(shuffled_training_inps, shuffled_training_labels, specific_gene, fold, gene_max_len)
+        #     train_fold_results.append(train_loss)
+        #     valid_fold_results.append(valid_loss)
+        # train_avg = sum(train_fold_results) / len(train_fold_results)
+        # valid_avg = sum(valid_fold_results) / len(valid_fold_results)
+        # print("writing line")
+        # writeLine = [specific_gene, len(training_labels), 
+        #             mean, std, sk, kurt,
+        #             wandbstr] + train_fold_results + valid_fold_results + [train_avg, valid_avg]
+        
+        # ===================== FOR RANDOM SPLIT =====================
+        # train_loss, valid_loss, wandbstr = train(shuffled_training_inps, shuffled_training_labels, specific_gene, -1, gene_max_len) # ===================== FOR WANDB =====================
+        train(shuffled_training_inps, shuffled_training_labels, specific_gene, -1, gene_max_len, tag) # ===================== FOR CSV =====================
+        # print("writing line")
+        # writeLine = [specific_gene, len(training_labels), 
+        #             mean, std, sk, kurt,
+        #             wandbstr] + [train_loss, valid_loss]
             
         # with open(output_path, "a", newline='') as write_to:
         #     writer = csv.writer(write_to)

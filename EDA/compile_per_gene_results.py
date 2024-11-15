@@ -21,6 +21,9 @@ def scrape_metrics(path, per_epoch = False):
     train_losses, val_losses = [], []
     i = 0
     val_min = float("inf")
+    # check if exists
+    if not os.path.exists(path + "/version_0/metrics.csv"): return 999, 999, 999, 999
+
     with open(path + "/version_0/metrics.csv") as read_from:
         for line in read_from:
             line = line.split(",")
@@ -103,8 +106,10 @@ def plot_min_val(tag = None):
 
     # Display the plot
     # plt.tight_layout()
+    if tag: tag = "_" + tag
+    else: tag = ""
     plt.show()
-    plt.savefig("per_gene_min_val_loss.png")
+    plt.savefig(f"per_gene_min_val_loss{tag}.png")
 
 """
 Plot min training loss by gene
@@ -132,21 +137,70 @@ def plot_min_train(tag = None):
 
     # Display the plot
     # plt.tight_layout()
+    if tag: tag = "_" + tag
+    else: tag = ""
     plt.show()
-    plt.savefig("per_gene_min_train_loss.png")
+    plt.savefig(f"per_gene_min_train_loss{tag}.png")
 
+"""
+method to get results for a given gene and tag
+"""
+def get_results(gene, tag = None):
+    train_losses, val_losses = [], []
+    if tag: tag = "_" + tag
+    else: tag = ""
+    for sub_dir in os.listdir(RESULTS_DIR + tag + "/"):
+        cur_gene = sub_dir.split("_")[0]
+        if cur_gene == gene:
+            train_losses, val_losses = scrape_metrics(RESULTS_DIR + tag + "/" + sub_dir, per_epoch = True)
+            break
+    return train_losses, val_losses
+
+"""
+Method to compare gene results btwn two different runs/tags
+"""
+def compare_gene_loss(gene, tag1, tag2 = None):
+    gene_tag1_train, gene_tag1_val = get_results(gene, tag1)
+    gene_tag2_train, gene_tag2_val = get_results(gene, tag2)
+    
+    if tag1: tag1 = "_" + tag1
+    else: tag1 = ""
+    if tag2: tag2 = "_" + tag2
+    else: tag2 = "_default"
+    plt.figure(figsize=(10, 6))  # Set figure size
+    plt.plot([i for i in range(len(gene_tag1_train))], gene_tag1_train, marker='o', linestyle='-', color='blue', label = f"training{tag1}")  # Plot with markers
+    plt.plot([i for i in range(len(gene_tag1_val))], gene_tag1_val, marker='o', linestyle='-', color='green', label = f"validation{tag1}")  # Plot with markers
+    plt.plot([i for i in range(len(gene_tag2_train))], gene_tag2_train, marker='o', linestyle='-', color='red', label = f"training{tag2}")  # Plot with markers
+    plt.plot([i for i in range(len(gene_tag2_val))], gene_tag2_val, marker='o', linestyle='-', color='orange', label = f"validation{tag2}")  # Plot with markers
+   
+    plt.legend(loc = "upper right")
+
+    # Set labels and title
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.title("Training and Validation Loss for " + gene)
+
+    # Add grid for better readability
+    plt.grid(visible=True)
+
+    # Display the plot
+    plt.tight_layout()
+    plt.show()
+    plt.savefig(GENE_LOSS_DIR + gene + f"_loss{tag1}_vs{tag2}.png")
+    plt.close()
 
 """
 Method to plot train loss and val loss for given gene (one plot per gene)
 """
 def plot_gene_loss(gene, path = None, tag = None):
+    if not tag: tag = ""
     # get results for a given gene
     train_losses, val_losses = [], []
     if not path:
-        for sub_dir in os.listdir(RESULTS_DIR):
+        for sub_dir in os.listdir(RESULTS_DIR + tag + "/"):
                 cur_gene = sub_dir.split("_")[0]
                 if cur_gene == gene:
-                    train_losses, val_losses = scrape_metrics(RESULTS_DIR + sub_dir, per_epoch = True)
+                    train_losses, val_losses = scrape_metrics(RESULTS_DIR + tag + "/" + sub_dir, per_epoch = True)
                     break
     else:
         train_losses, val_losses = scrape_metrics(path, per_epoch = True)
@@ -166,7 +220,6 @@ def plot_gene_loss(gene, path = None, tag = None):
     # Display the plot
     plt.tight_layout()
     plt.show()
-    if not tag: tag = ""
     plt.savefig(GENE_LOSS_DIR + gene + f"_loss{tag}.png")
     plt.close()
 

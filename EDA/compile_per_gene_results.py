@@ -233,6 +233,70 @@ def plot_all_gene_losses(tag = None):
             gene = sub_dir.split("_")[0]
             plot_gene_loss(gene, path = RESULTS_DIR + tag + "/" + sub_dir, tag = tag)
 
+"""
+Computes and plots the average min val loss by model tag
+"""
+def plot_performance_by_tag():
+    """
+    Iterate thru fall24 dir
+        if file[:n] == "per_gene_results":
+            tag = file.split(""_)[-1]
+            read w csvreader
+            extract last col val
+            add to tag's arr
+    """
+
+    # compute metrics for model
+    models = {}
+    for file in os.listdir(TRAINING_DIR):
+        if file[:16] == "per_gene_results":
+            tag = file.split("_")[-1]
+            with open(TRAINING_DIR + file) as read_from:
+                for line in read_from:
+                    line = line.split(",")
+                    if line[0] == "gene": continue
+                    elif tag not in models: models[tag] = []
+                    models[tag].append(float(line[-1]))
+
+    averages = {i:np.average(models[i]) for i in models} #create dict w averages by tag
+    mins = {i:min(models[i]) for i in models} #create dict w mins
+    maxs = {i:max(models[i]) for i in models} #create dict w maxs
+
+    # Extract keys and values from the dictionaries
+    tags = list(averages.keys())
+    average_values = list(averages.values())
+    min_values = list(mins.values())
+
+    # Bar width for grouping
+    bar_width = 0.35
+    x = np.arange(len(tags))
+
+    # Create the plot
+    plt.figure(figsize=(12, 6))
+    plt.bar(x - bar_width / 2, average_values, bar_width, label='Average', color='skyblue', edgecolor='black', alpha=0.7)
+    plt.bar(x + bar_width / 2, min_values, bar_width, label='Minimum', color='lightcoral', edgecolor='black', alpha=0.7)
+
+    # Add labels, title, and legend
+    plt.title('Average and Minimum Validation Loss by Model Tag', fontsize=16)
+    plt.xlabel('Model Tag', fontsize=14)
+    plt.ylabel('Validation Loss', fontsize=14)
+    plt.xticks(x, tags, fontsize=12)
+    plt.yticks(fontsize=12)
+    plt.legend(fontsize=12)
+
+    # Annotate bar values
+    for i, (avg, min_val) in enumerate(zip(average_values, min_values)):
+        plt.text(i - bar_width / 2, avg + 0.01, f"{avg:.2f}", ha='center', fontsize=10)
+        plt.text(i + bar_width / 2, min_val + 0.01, f"{min_val:.2f}", ha='center', fontsize=10)
+
+    # Adjust layout and show plot
+    plt.tight_layout()
+    plt.show()
+    plt.savefig(TRAINING_DIR + "model_performance_summary.png")
+    plt.close()
+    
+
+
 if __name__ == "__main__":
     args = sys.argv
     print(args)

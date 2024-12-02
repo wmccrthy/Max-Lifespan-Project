@@ -250,7 +250,11 @@ def plot_performance_by_tag():
     models = {}
     for file in os.listdir(TRAINING_DIR):
         if file[:16] == "per_gene_results":
-            tag = file.split("_")[-1]
+            tag = file.split("_")
+            print(tag)
+            if len(tag) > 3: tag = "_".join(file.split("_")[3:])[:-4]
+            else: tag = file.split("_")[-1][:-4]
+            print(tag)
             with open(TRAINING_DIR + file) as read_from:
                 for line in read_from:
                     line = line.split(",")

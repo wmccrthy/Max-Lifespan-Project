@@ -15,7 +15,7 @@ from torch.nn import Dropout
 from pytorch_lightning.callbacks import EarlyStopping
 from scipy.stats import kurtosis, skew
 import csv
-import sys
+import sys, random
 
 """
 This script is informed by EDA we ran to trim cumulative dataset s.t we only have one2one sequences of lengths between 104 and 31620
@@ -46,6 +46,7 @@ gene_one2one_datasets_path = (
     "/data/rbg/users/wmccrthy/chemistry/Everything/gene_datasets/regulatory_one2one/"
 )
 gene_one2one_metadata_path = "/data/rbg/users/wmccrthy/chemistry/Everything/EDA/regulatory_one2one_sets_metadata.csv"
+training_dir = "/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training/"
 UNIVERSAL_MAX_LEN = 31620
 
 
@@ -118,6 +119,7 @@ def stats(data):
     kurt = kurtosis(data, fisher=True, bias=False)
     return mean, std, sk, kurt
 
+
 def get_model_params(model):
     # Access and use only the embedding weights -> pass our inputs thru embedding weights
     print("====================== Named Params ======================")
@@ -131,8 +133,11 @@ def get_model_params(model):
     for module in model.modules():
         print(module)
 
+
 class MLP(nn.Module):
-    def __init__(self, input_dim, hidden_dim1, hidden_dim2, output_dim, dropout_prob=0.1):
+    def __init__(
+        self, input_dim, hidden_dim1, hidden_dim2, output_dim, dropout_prob=0.1
+    ):
         super(MLP, self).__init__()
         self.fc1 = nn.Linear(input_dim, hidden_dim1)
         self.dropout1 = nn.Dropout(dropout_prob)
@@ -147,7 +152,8 @@ class MLP(nn.Module):
         x = self.dropout2(x)
         x = self.fc3(x)  # Output layer
         return x
-    
+
+
 class Enformer_Model(L.LightningModule):
     def __init__(self, batch_size, max_len) -> None:
         super().__init__()
@@ -165,12 +171,18 @@ class Enformer_Model(L.LightningModule):
         # for p in self.model.parameters(): p.requires_grad = False #freeze enformer layer
 
         self.fc1 = nn.Linear(dim * 2, 1)
-        self.dropout1 = Dropout(p=0.1)
+        self.dropout1 = Dropout(p=0.05)
 
         # self.fc2 = nn.Linear(target_length, 1)
         # self.droupout2 = Dropout(p=0.1)
 
-        self.mlp = MLP(input_dim=target_length, hidden_dim1=128, hidden_dim2=64, output_dim=1, dropout_prob=0.1)
+        self.mlp = MLP(
+            input_dim=target_length,
+            hidden_dim1=128,
+            hidden_dim2=64,
+            output_dim=1,
+            dropout_prob=0.05,
+        )
 
     def forward(self, inputs, target):
         # print("inputs shape pre-mod:", inputs.shape) #dim = (batch size, max_len) #usually (batch size, 1, max_len)
@@ -232,7 +244,7 @@ class Enformer_Model(L.LightningModule):
             "optimizer": optimizer,
             "lr_scheduler": {
                 "scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(
-                    optimizer, min_lr=1e-5
+                    optimizer, min_lr=1e-6
                 ),
                 "monitor": "val_loss",
                 "frequency": 1,
@@ -258,9 +270,7 @@ class EnformerDataset(Dataset):
         return seq, torch.Tensor([label])
 
 
-def train(
-    shuffled_training_inps, shuffled_training_labels, gene, fold, gene_max_len, tag=None
-):
+def train(shuffled_training_inps, shuffled_training_labels, gene, fold, gene_max_len, tag=None, valid_inps = None):
     batch_size, num_epochs, num_dev = int(1), int(10), int(1)
 
     # ===================== Implements 5 cross fold validation splitting =====================
@@ -296,6 +306,15 @@ def train(
     valid_data = DataLoader(
         val_data, batch_size=batch_size, num_workers=8, drop_last=True
     )
+    # re-compile training and validation sets if valid_inps was passed
+    if valid_inps:
+        training_data = DataLoader(
+            cumulative_dataset, batch_size=batch_size, num_workers=8, drop_last=True
+        )
+        valid_data = DataLoader(
+            EnformerDataset(valid_inps[0], valid_inps[1]), # valid inps will be passed as tuple of lists where valid_data[0] is seqs and valid_data[1] is labels
+            batch_size=batch_size, num_workers=8, drop_last=True
+        )
 
     model = Enformer_Model(batch_size, gene_max_len)
 
@@ -312,8 +331,7 @@ def train(
         tag = "_" + tag
     else:
         tag = ""
-    log_dir = f"/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training/gene_training_metrics{
-        tag}"
+    log_dir = f"/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training/gene_training_metrics{tag}"
     # check if CSVLogger directory exists
     # Check if the directory exists
     if not os.path.exists(log_dir):
@@ -326,15 +344,14 @@ def train(
     # init CSVLogger
     csv_logger = CSVLogger(
         log_dir,
-        name=f"{gene}_{
-            len(cumulative_dataset)}_random_split",
+        name=f"{gene}_{len(cumulative_dataset)}_random_split",
     )
 
     # init EarlyStopping
     early_stopping = EarlyStopping(
         monitor="val_loss",  # metric to monitor
         # number of epochs with no improvement after which training will be stopped
-        patience=3,
+        patience=4,
         verbose=True,
         mode="min",  # "min" because you want to stop when val_loss stops decreasing
     )
@@ -368,10 +385,8 @@ def train(
 
 
 """
-
+Method to train across all genes (individually)
 """
-
-
 def train_all_genes(tag=None):
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     # output_path = "/data/rbg/users/wmccrthy/chemistry/Everything/fall_24_training/stats_enformer_by_gene.csv"
@@ -514,6 +529,54 @@ def train_single_gene(gene):
             -1,
             gene_max_len,
         )
+
+"""
+Method to train on an amalgamation of genes, then test on single left out gene
+"""
+def train_amalgamation_of_genes(train_genes, test_genes):
+# what we could do is go through genes with decent val loss in prior tests (avg val loss < 11, min val loss < 7.5)
+# sample random set of 5 of those genes for training
+# sample one random for testing
+    results_path = training_dir + "per_gene_results_pt6.csv"
+
+    to_sample = []
+    with open(results_path) as read_from:
+        for line in read_from:
+            line = line.split(",")
+            if line[0] == "gene": continue #skip first line
+            avg_val, min_val = line[2:]
+            gene = line[0].strip()
+            avg_val, min_val = int(avg_val), int(min_val)
+            if avg_val < 11 and min_val < 7.5: to_sample.append(gene)
+
+    train_genes = random.sample(to_sample, 10)
+    test_gene = random.split(to_sample, 1)
+    training_inps, training_labels = [], []
+    # iterate thru and combine datasets into single list
+    for gene in train_genes:
+        gene_path = gene_one2one_datasets_path + gene + "_orthologs_trimmed_one2one.csv"
+        gene_inps, gene_labels = prepare4Enformer(gene_path, UNIVERSAL_MAX_LEN)
+        training_inps.extend(gene_inps)
+        training_labels.extend(gene_labels)
+    # shuffle training dataset
+    indices = np.arange(len(training_labels))
+    np.random.shuffle(indices)
+    shuffled_training_inps = [training_inps[i] for i in indices]
+    shuffled_training_labels = [training_labels[i] for i in indices]
+    # create validation set
+    val_gene_path = gene_one2one_datasets_path + test_gene[0] +  "_orthologs_trimmed_one2one.csv"
+    val_inps, val_labels = prepare4Enformer(val_gene_path, UNIVERSAL_MAX_LEN)
+
+    # call train on the combined data
+    train(
+        shuffled_training_inps,
+        shuffled_training_labels,
+        "gene_amalgamation",
+        -1,
+        UNIVERSAL_MAX_LEN,
+        "_".join(train_genes) + f'_{test_gene[0]}',
+        (val_inps, val_labels)
+    )
 
 
 if __name__ == "__main__":

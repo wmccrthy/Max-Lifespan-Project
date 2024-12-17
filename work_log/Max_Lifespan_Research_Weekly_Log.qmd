@@ -64,20 +64,19 @@ Focus of this period was to get re-situated with the project and caught up on th
 
 Quick EDA Recap:
 
-    * 51 million DNA sequences orthologous to the human genome from 453 different mammalian genomes 
-    * Added `lifespan` variable to data (according to the species which a sequence was from)
-    * Organized data into sets categorized by the gene from which a sequence was extracted
-    * For each gene:
-        * used DNABERT-S embedding model to embed sequences (embeddings of dim 1 x 768)
-        * reduced embedding dimensionality to 1 x 3 using PCA
-        * k-means clustered reduced embeddings
-            * idea here is that clustered embeddings represent similar DNA sequences
-        * computed  lifespan statistics (mean, median, std deviation, z score) for each 
-        cluster to glean whether there is association between DNA similarity and lifespan in any 
-        clusters
-            * if there is no association between DNA similarity and lifespan, data is definitely
-            bad; if there is association, data has potential
+  * 51 million DNA sequences orthologous to the human genome from 453 different mammalian genomes 
+  * Added `lifespan` variable to data (according to the species which a sequence was from)
+  * Organized data into sets categorized by the gene from which a sequence was extracted
+  * For each gene:
+    * used DNABERT-S embedding model to embed sequences (embeddings of dim 1 x 768)
+    * reduced embedding dimensionality to 1 x 3 using PCA
+    * k-means clustered reduced embeddings
+      * idea here is that clustered embeddings represent similar DNA sequences
+    * computed  lifespan statistics (mean, median, std deviation, z score) for each 
+    cluster to glean whether there is association between DNA similarity and lifespan in any clusters
+      * if there is no association between DNA similarity and lifespan, data is definitely bad; if there is association, data has potential
     * Glimpse of the data we've collected:
+
 ```{r}
 #| fig-width: 10
 #| echo: false
@@ -90,56 +89,59 @@ gene_sets_metadata <-
     read_csv("gene_sets_data/regulatory_sets_metadata.csv",
         show_col_types = FALSE
     ) |>
-    head(5)
+    head(3)
 
 gene_sets_cluster_data <-
     read_csv("gene_sets_data/regulatory_sets_cluster_data_modified_z.csv",
         show_col_types = FALSE
     ) |>
-    head(5)
+    head(3)
 
 gene_sets_proxy_rankings <-
     read_csv("gene_sets_data/gene_rankings.csv",
         show_col_types = FALSE
     ) |>
-    head(5)
+    head(3)
 
-kable(gene_sets_metadata, digits = 3)
-kable(gene_sets_cluster_data, digits = 3)
+kable(gene_sets_metadata, digits = 1)
+kable(gene_sets_cluster_data, digits = 1)
 kable(gene_sets_proxy_rankings, digits = 3)
 ```
 
-    * And some examples of clustering results (and how they vary according to z-score)
+  * And some examples of clustering results (and how they vary according to z-score)
 
 ![]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/good_clustering_results.png")
 ![]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/bad_clustering_results.png")
 
 
 Quick Modeling Recap:
-    * The main purpose of the EDA described above was to identify and compile training data; the idea from there was that if we could train a model to accurately predict lifespan when given a DNA sequence from an "outlying" species, we were on to something
-        * in this context, by "outlying" species we mean a species whose lifespan is uncharacteristically large relative to genetically similar species
-        * to identify such species, we performed further analysis, briefly shown in the tables and plots below
+
+  * The main purpose of the EDA described above was to identify and compile training data; the idea from there was that if we could train a model to accurately predict lifespan when given a DNA sequence from an "outlying" species, we were on to something
+    * in this context, by "outlying" species we mean a species whose lifespan is uncharacteristically large relative to genetically similar species
+    * to identify such species, we performed further analysis, briefly shown in the tables and plots below
 ```{r}
-#| echo: false
-#| eval: true
+8
 
 # show table w/ families/genera of interest
 setwd("/Users/wyattmccarthy/repos/Max-Lifespan-Project/EDA/")
 
 family_of_interest <-
-  read_csv("lifespan_data/families_of_interest_IQR.csv", 
-  show_col_types = FALSE) |>
-  head(5)
+    read_csv("lifespan_data/families_of_interest_IQR.csv",
+        show_col_types = FALSE
+    ) |>
+    head(5)
 
-genera_of_interest <- 
-  read_csv("lifespan_data/genera_of_interest_IQR.csv",
-  show_col_types = FALSE) |>
-  head(5)
+genera_of_interest <-
+    read_csv("lifespan_data/genera_of_interest_IQR.csv",
+        show_col_types = FALSE
+    ) |>
+    head(5)
 
 orders_of_interest <-
-  read_csv("lifespan_data/orders_of_interest_IQR.csv",
-  show_col_types = FALSE) |>
-  head(5)
+    read_csv("lifespan_data/orders_of_interest_IQR.csv",
+        show_col_types = FALSE
+    ) |>
+    head(5)
 
 kable(family_of_interest, digits = 2)
 kable(genera_of_interest, digits = 2)
@@ -148,39 +150,38 @@ kable(orders_of_interest, digits = 2)
 
 ![Species Lifespan Histograms]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/summative lifespan histograms.png")
 
-    * With the context gleaned from this EDA, we experimented with various modeling approaches:
-      * The Perceiver Model
-        * unsuccessful, model did not appear to learn well regardless of the configuration of 
-        training data tested; some results shown below 
-![Perceiver Training Results]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/perceiver_results_good_data.png")
+  * With the context gleaned from this EDA, we experimented with various modeling approaches:
+    * The Perceiver Model
+      * unsuccessful, model did not appear to learn well regardless of the configuration of training data tested; some results shown below
 
-      * The Enformer Model
-        * some successful runs; able to get low validation loss on two sets of training data;
-        one with 1000 entries selected from the top 6 genes (according to statistically 
-        significant clusters) and another with 100 arbitrarily selected entries across all data
-        * positive results here inspired us to investigate training on isolated gene datasets; 
-        finding a relationship between DNA composition and lifespan within a certain gene would
-        be particularly interesting
-        * when trying to train on larger datasets, we ran into memory issues due to how we were 
-        loading in data. That is, we were trying to read in a 20gb dataset rather than processing 
-        in smaller chunks at a time (this explains why per-gene analysis cut-off after a very small
-        subset of genes)
-<!-- Enformer Results -->
-![Enformer Training Results on "Good" Data]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/1000_good_data_results.png")
-![Enformer Training Results on Arbitrary Data]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/arbitrary_100_results.png")
-<!-- Per-Gene Analysis (Enformer model) -->
-![Enformer Training Per-Gene Results]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/per_gene_results.png"){height=50%}
+![Perceiver Training Results]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/perceiver_results_good_data.png"){height=40% fig-align="center"}
+
+  * The Enformer Model
+    * some successful runs; able to get low validation loss on two sets of training data;
+    one with 1000 entries selected from the top 6 genes (according to statistically 
+    significant clusters) and another with 100 arbitrarily selected entries across all data
+    * positive results here inspired us to investigate training on isolated gene datasets; 
+    finding a relationship between DNA composition and lifespan within a certain gene would be particularly interesting
+    * when trying to train on larger datasets, we ran into memory issues due to how we were loading in data. That is, we were trying to read in a 20gb dataset rather than processing in smaller chunks at a time (this explains why per-gene analysis cut-off after a very small subset of genes)
+
+![Enformer Training Results on "Good" Data]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/1000_good_data_results.png"){height=40% fig-align="center"}
+
+![Enformer Training Results on Arbitrary Data]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/arbitrary_100_results.png"){height=40% fig-align="center"}
+
+![Enformer Training Per-Gene Results]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/per_gene_results.png"){height=30% fig-align="center"}
 
 Given our failures to analyze larger quantities of data, we had to re-evaluate our approach to training.
 
 # October 1st - October 25th
 
 Focus of this period was to retrace our data collection (from months and months ago) to ensure it's validity, recompile and trim data where necessary and devise a modeling approach in which we could effectively train on these smaller, trimmed datasets. Our first task was to trim our cumulative data. Given the memory issues we encountered earlier, as well as the performance issues incurred by pre-processing extremely long DNA sequences before training a model, we wanted to trim data with outlying sequence lengths. To define a valid range of sequence lengths, we collected metrics on the distribution of sequence lengths across all gene data:
-![Sequence Length Distribution]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/untrimmed_seq_lens.png")
-![Sequence Length Distribution(log10 scale)]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/untrimmed_seq_lens_log10.png")
+
+![Sequence Length Distribution]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/untrimmed_seq_lens.png"){height=30% fig-align="center"}
+![Sequence Length Distribution(log10 scale)]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/untrimmed_seq_lens_log10.png"){height=30% fig-align="center"}
 
 Given the massive range of sequence lengths, we decided an appropriate range of sequence lengths to incorporate in analysis was between 100 (inverse log10(2)) and 31622 (inverse log10(4.5)), where the vast majority of the distribution falls.
 With that, we decided to trim data such only we only kept sequences with lengths in this range and that were annotated as "one2one" (given our gene annotations come from [TOGA](https://www.science.org/doi/10.1126/science.abn3107), a ML classifier, we want sequences that are most likely to be orthologous). Below you can see the code used for one of our trimming methods (this chunk also outputs some stats on the trimmed data).
+
 ```{python}
 #| python.reticulate: FALSE
 #| eval: FALSE
@@ -256,37 +257,308 @@ def create_one2one_gene_sets():
     write_to.close()
 ```
 
-For the time being, we want to experiment with training on individual genes (which can be individually pre-processed and tokenized) to avoid the memory issues we were encountering earlier. Thereafter, we will circle back to training on larger datasets. 
-Once our data was trimmed according to the above constraints, we collected the following to inform this training:
+For the time being, we want to experiment with training on individual genes (which can be individually pre-processed and tokenized) to avoid the memory issues we were encountering earlier. Thereafter, we will circle back to training on larger datasets. Once our data was trimmed according to the above constraints, we collected the following to inform this training:
+
   * distribution of number of species represented in each gene dataset
-![]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/species_per_gene.png") 
+![]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/species_per_gene.png"){height=30% fig-align="center"}
+
   * distribution of number of sequences in each gene dataset
-![]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/seqs_per_gene.png")
+![]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/seqs_per_gene.png"){height=30% fig-align="center"}
 
-Given the distribution of species in each gene dataset, we decided it makes sense to train on gene sets with at least 300 species represented. 
+Given the distribution of species in each gene dataset, we decided it makes sense to train on gene sets with at least 400 species represented. 
 
-# October 28th - ...
+# October 28th - December 1st
 
-Focus of this period is to run scripts to train Enformer model on each of our gene datasets, evaluate results, and move forward accordingly...
+Focus of this period is to implement, debug, and run scripts to train Enformer model on each of our gene datasets, evaluate results, and move forward accordingly.
 
-==============================================================================================================================================
-CURRENT ISSUES:
-  - got enformer layer to work by passing inputs and target
-  - now there are issues in backward; (these are fixed by unfreezing enformer layer)
-  - attempting training run w just default enformer (currently RUNNING ON ROSETTA13 TMUX tmrw)
-  - our goal is to pull embeddings from the enformer model and pass those thru two of our own linear layers
-    - ways to do this:
-      - Enformer.from_hparams(), where we pass return_only_embeddings = True to model calls
-        - run into the same sequence length != target length error (dims are properly inputted so not sure what prompts this...) 
-        - my hypothesis for this bug is that it is due to padding; even so, there is no seq in current gene that has length = 113, so not sure where that comes from
-      - en.from_pretrained() where we write our own method to pull out the embeddings
-        - 
 
-    - currently have a run on ROSETTA2 in tmux; got stuff to work by padding all genes to same length (31620) and using target length of 248 (this represents the seq length once passing thru a few convolutional layers)
-      - fails after 1 epoch bc "Disk Quota exceeded"; is there a way we can avoid saving wandb artifacts locally?
-      - quota exceeding in this dir: '/afs/csail.mit.edu/u/w/wmccrthy/.local/share/wandb/artifacts/staging/tmpa5g64rw9'
-      - implement Sean's points:
-        - remove wandb
-        - random split instead of 5 fold cross val
-        - Instead of saving train, val, train label, val label, just shuffle once. Find the threshold. Then feed in the slices to data loader without saving them to a variable
-    
+**First Training Run Model Overview (tag: default)**
+
+  * We input tokenized sequences (all padded to length 31620)
+  * Pass tokenized sequences to [pre-trained Enformer](https://github.com/lucidrains/enformer-pytorch/tree/main) and pull out sequence embeddings
+  * Pass embeddings through two linear layers (no dropout)
+  * Output lifespan prediction; evaluate loss accordingly
+  * 10 epochs per gene
+  * batch size = 1
+
+For this initial training run, we trained on only genes with >=400 species represented in their set. For a sample of initial results, see below.
+
+![Minimum Training Loss by Gene]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/fall_24_training/per_gene_min_train_loss.png"){height=40% fig-align="center"}
+
+![Minimum Validation Loss by Gene]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/fall_24_training/per_gene_min_val_loss.png"){height=40% fig-align="center"}
+
+The results above are limited to the "best" performing genes; that is, the genes for which the minimum validation loss was < 10. Given we were only able to train on a sample of our gene datasets, it is encouraging to see that the model learns (relative to our prior results) somewhat well on many of these datasets. In some cases, like on MYBL1, the model exhibits some of the best performance we've seen so far. Given how MYBL1 stands out as the best performing gene in this initial set of results, we will use it to benchmark the performance of other model configurations.
+
+
+**Second Training Run Model Overview (tag: frozen_enformer)**
+
+  * We input tokenized sequences (all padded to length 31620)
+  * Pass tokenized sequences to [pre-trained Enformer](https://github.com/lucidrains/enformer-pytorch/tree/main) and pull out sequence embeddings
+  * Pass embeddings through two linear layers (dropout with p = 0.1 on each linear layer)
+  * Output lifespan prediction; evaluate loss accordingly
+  * For this run, we froze the enformer layer (it's weights won't update), added early stopping (if val loss plateaus for 3 epochs), added dropout to the final two linear layers and tweaked LR (1e-3 instead of 1e-4)
+  * 10 epochs per gene
+  * batch size = 1
+
+The key difference in this second run is that we froze the enformer layer and added dropout; based off the preliminary results, this seems to hurt the model's performance quite significantly. In some cases, it helps to avoid overfitting but at the cost of the model's ability to learn (generally higher loss in training and validation sets). We observe a few examples of this below, where for one gene, SIRT5, we see improved validation loss with slightly higher training loss, but for another gene, CERS3, we see much worse validation and training loss:
+
+![SIRT5 Performance Comparison]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/fall_24_training/loss_plots/SIRT5_loss_frozen_enformer_vs_default.png"){height=40% fig-align="center"}
+
+![CERS3 Performance Comparison]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/fall_24_training/loss_plots/CERS3_loss_frozen_enformer_vs_default.png"){height=40% fig-align="center"}
+
+Given how poorly the model was performing in it's initial training, we stopped the run before it could train on what is meant to be our benchmark gene, MYBL1. In any case, back to the drawing board...
+
+
+**Third Training Run Model Overview (tag: pt2)**
+
+  * We input tokenized sequences (all padded to length 31620)
+  * Pass tokenized sequences to [pre-trained Enformer](https://github.com/lucidrains/enformer-pytorch/tree/main) and pull out sequence embeddings
+  * Pass embeddings through two linear layers (dropout with p = 0.1 on each linear layer)
+  * Output lifespan prediction; evaluate loss accordingly
+  * For this run, we unfroze the Enformer layer and kept everything else the same as prev run
+  * 10 epochs per gene
+  * batch size = 1
+
+This run had the worst performance yet. This suggests that the freezing of the Enformer layer was not the primary cause of worse performance. Considering the other differences between this model configuration and that of our best model so far (the first run), the addition of dropout stands out as a potential concern. Generally, dropout should help with generalization and model performance, but in our case, I'm concerned that it might be causing problems since we apply at the final two linear layers (from which the output is directly derived); as such, the model might not be able to correct for errors induced by dropout before returning a final output.
+
+![SIRT5 Performance Comparison]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/fall_24_training/loss_plots/SIRT5_loss_pt2_vs_default.png"){height=40% fig-align="center"}
+
+![CERS3 Performance Comparison]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/fall_24_training/loss_plots/CERS3_loss_pt2_vs_default.png"){height=40% fig-align="center"}
+
+For many genes during this run, training stopped prematurely as val loss failed to improve with additional epochs. Similarly with the previous run, performance was generally so poor that we stopped the run before it could train on most genes (i.e. MYBL1).
+
+
+**Fourth Training Run Model Overview (tag: pt3)**
+
+  * We input tokenized sequences (all padded to length 31620)
+  * Pass tokenized sequences to [pre-trained Enformer](https://github.com/lucidrains/enformer-pytorch/tree/main) and pull out sequence embeddings
+  * Pass embeddings through one linear layer (no dropout) and one MLP layer (implementation below)
+```{python}
+#| eval: false
+import torch
+from torch import nn
+# MLP Layer
+class MLP(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim, dropout_prob=0.1):
+        super(MLP, self).__init__()
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.dropout = nn.Dropout(dropout_prob)
+        self.fc2 = nn.Linear(hidden_dim, output_dim)
+
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        x = self.dropout(x)
+        x = self.fc2(x)
+        return x
+```
+  * Output lifespan prediction; evaluate loss accordingly
+  * Enformer unfrozen, lr starts at 1e-4, 
+  * 10 epochs per gene
+  * batch size = 1
+
+This models performance is very similar to the first variant we tried (denoted as default in most comparisons). There is some variation in this approaches performance, where some genes have higher loss than in the first variant, while others have lower loss, as shown in the results below.
+
+![SIRT5 Performance Comparison]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/fall_24_training/loss_plots/SIRT5_loss_pt3_vs_default.png"){height=40% fig-align="center"}
+
+![CERS3 Performance Comparison]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/fall_24_training/loss_plots/CERS3_loss_pt3_vs_default.png"){height=40% fig-align="center"}
+
+![MYBL1 Performance Comparison]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/fall_24_training/loss_plots/MYBL1_loss_pt3_vs_default.png"){height=40% fig-align="center"}
+
+
+Training loss appears to be very similar between these two best performing model configurations (this variant, denoted pt3, and the first variant, denoted default), while validation loss is generally more variant. In any case, the model is clearly overfitting so our next revision seeks to improve in that regard.
+
+
+
+**Fifth Training Run Model Overview (tag: pt4)**
+
+  * We input tokenized sequences (all padded to length 31620)
+  * Pass tokenized sequences to [pre-trained Enformer](https://github.com/lucidrains/enformer-pytorch/tree/main) and pull out sequence embeddings
+  * Pass embeddings through one linear layer (dropout w/ p = 0.1) and one MLP layer (implementation changes shown below)
+    * adding additional hidden/linear layer to our MLP
+```{python}
+#| eval: false
+import torch
+from torch import nn
+# MLP Layer
+class MLP(nn.Module):
+    def __init__(
+        self, input_dim, hidden_dim1, hidden_dim2, output_dim, dropout_prob=0.1
+    ):
+        super(MLP, self).__init__()
+        self.fc1 = nn.Linear(input_dim, hidden_dim1)
+        self.dropout1 = nn.Dropout(dropout_prob)
+        self.fc2 = nn.Linear(hidden_dim1, hidden_dim2)
+        self.dropout2 = nn.Dropout(dropout_prob)
+        self.fc3 = nn.Linear(hidden_dim2, output_dim)
+
+    def forward(self, x):
+        x = F.relu(self.fc1(x))  # First hidden layer
+        x = self.dropout1(x)
+        x = F.relu(self.fc2(x))  # Second hidden layer
+        x = self.dropout2(x)
+        x = self.fc3(x)  # Output layer
+        return x
+```
+  * Output lifespan prediction; evaluate loss accordingly
+  * Enformer unfrozen, lr starts at 1e-4, 
+  * 10 epochs per gene
+  * batch size = 1
+
+This model configuration exhibits generally similar performance in terms of best validation loss/training loss as the default and pt3 variations; notably however, this variant performed well on different gene. That is, the best performing genes with this model had similarly low loss as the best performing genes with other configurations (pt3, default), but the two sets of genes were very different. An example of this is MYBL1, which performed poorly on this run.
+
+![SIRT5 Performance Comparison]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/fall_24_training/loss_plots/SIRT5_loss_pt4_vs_default.png"){height=40% fig-align="center"}
+
+![CERS3 Performance Comparison]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/fall_24_training/loss_plots/CERS3_loss_pt4_vs_default.png"){height=40% fig-align="center"}
+
+![MYBL1 Performance Comparison]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/fall_24_training/loss_plots/MYBL1_loss_pt4_vs_default.png"){height=40% fig-align="center"}
+
+**Sixth Training Run Model Overview (tag: pt5)**
+
+  * We input tokenized sequences (all padded to length 31620)
+  * Pass tokenized sequences to [pre-trained Enformer](https://github.com/lucidrains/enformer-pytorch/tree/main) and pull out sequence embeddings
+  * Pass embeddings through one linear layer (modified dropout to p = 0.05) and one MLP layer
+    * modifying dropout in MLP layer to p = 0.05 instead of 0.1
+  * Output lifespan prediction; evaluate loss accordingly
+  * Enformer unfrozen, lr starts at 1e-3 **(increased from 1e-4 on prev runs)**
+  * 10 epochs per gene
+  * batch size = 1
+
+Model performs horribly! Seems that any time we using learning rate >= 1e-3, the model does really poorly. It is not worth comparing line plots given how poor the results were, so please see the top 3 performing genes' stats below for context. 
+```{r}
+#| echo: false
+#| eval: true
+
+setwd("/Users/wyattmccarthy/repos/Max-Lifespan-Project/fall_24_training/")
+
+pt5_results <-
+    read_csv("loss_tables/per_gene_results_pt5.csv",
+        show_col_types = FALSE
+    ) |>
+    head(3)
+
+kable(pt5_results, digits = 2)
+```
+
+**Seventh Training Run Model Overview (tag: pt6)**
+
+  * We input tokenized sequences (all padded to length 31620)
+  * Pass tokenized sequences to [pre-trained Enformer](https://github.com/lucidrains/enformer-pytorch/tree/main) and pull out sequence embeddings
+  * Pass embeddings through one linear layer (dropout p = 0.05) and one MLP layer (dropout p = 0.05)
+  * Output lifespan prediction; evaluate loss accordingly
+  * Enformer unfrozen, lr starts at 1e-4 and can decrease to 1e-6
+  * 10 epochs per gene
+  * batch size = 1
+  * changed early stopping s.t we stop after 4 epochs of plateau
+
+This model configuration performed similarly well to the default (baseline) and pt4 model variants, our two best performing prior to this run. In some cases, this model was not able to fit as well to genes as the other two variants, but it generally seems to overfit less and has produced the lowest average validation loss across genes so far. See below for examples that contrast this model's performance on two of our benchmark genes (SIRT5 and CERS3) and a couple other interesting cases.
+
+![SIRT5 Performance Comparison]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/fall_24_training/loss_plots/SIRT5_loss_pt6_vs_default.png"){height=40% fig-align="center"}
+
+![CERS3 Performance Comparison]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/fall_24_training/loss_plots/CERS3_loss_pt6_vs_default.png"){height=40% fig-align="center"}
+
+On SIRT5 and CERS3 (which we have used to benchmark each model's performance), our pt6 variant out-learns the default (previously best performing) variant.
+
+On MYBL1, another gene we've used for benchmarking, this model configuration has similar training loss and slightly worse validation loss than the default configuration.
+
+![MYBL1 Performance Comparison]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/fall_24_training/loss_plots/MYBL1_loss_pt6_vs_default.png"){height=40% fig-align="center"}
+
+The best performing gene on this run was LPIN3, for which validation loss was very similar to training loss (indicating the model is not overfitting as badly) and minimum validation loss was near 5.
+
+![LPIN3 Performance Comparison]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/fall_24_training/loss_plots/LPIN3_loss_pt6_vs_default.png"){height=40% fig-align="center"}
+
+**Summary of Various Models**
+
+![Model Performance Comparison (note: `results` corresponds to the `default` model config)]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/fall_24_training/model_performance_summary.png"){height=40% fig-align="center"}
+
+Some Key Observations
+
+1. **`pt2`**:
+   - Exhibits the **highest average validation loss** at **39.27**, suggesting poor overall performance and instability.
+   - However, its minimum loss of **12.46** indicates occasional good results.
+
+2. **`pt6`**:
+   - Achieves the **lowest minimum validation loss** of **5.58**, making it the best-performing model for minimum error.
+   - Its average loss of **12.21** demonstrates consistent performance across runs, essentially matching the other strong performing models.
+
+3. **`pt4`, `pt3`, and `results`/`default`**:
+   - These models perform very similarly, with average losses between **12.08** and **12.89**, and minimum losses around **6.2** to **6.57**.
+   - This indicates these models are both consistent and competitive in performance.
+
+4. **`frozen_enformer`**:
+   - While its **average loss** is higher at **17.85**, it achieves a decent minimum loss of **7.91**.
+   - This suggests occasional good runs but overall less stability compared to models like `pt6`.
+
+5. **`pt5`**:
+   - Shows an average loss of **18.68**, which is higher compared to other models except for `pt2`.
+   - Its minimum loss of **14.03** indicates relatively poorer performance compared to the best models.
+
+Summatively:
+
+  * **`pt6`** is the best-performing model based on its lowest minimum validation loss.
+  * **`pt2`** struggles significantly with stability, as evidenced by its high average loss.
+  * Models like **`pt6`**, **`pt4`**, **`pt3`**, and **`results`/`default`** provide a strong balance between low average loss and minimum loss, making them reliable options for consistent validation performance.
+Given that **`pt6`** essentially matches the best average validation loss and has the lowest minimum validation loss, this is the configuration we will use for the time being as we proceed.
+
+## December 1st - Next Steps
+
+As we approach the semester's end, it is time to evaluate potential next steps.
+
+Recall, the longer term objective is to perform what we've denoted as the "outlying species test". As touched on earlier in this log, this test will involve evaluating the model on DNA from a species whose lifespan is uncharacteristically high compared to their genus/family (taxonomic classifications that indicate genetic similarity). If our model is able to predict somewhat accurately under these conditions, chances are we are on to something. Now what that something is, is a whole nother question, but that is for the biologists we collaborate with to evaluate.
+
+In any case, to arrive at this goal, we want to continue to tune and test the model. Recall that thus far, most of our training has been on DNA from individual genes. As we've seen, the model is able to perform somewhat well, achieving a minimum validation loss <6, for a plethora of these genes. To move towards our goal of the outlying species test, however, we now want to train the model on DNA from a collection of genes rather than individual genes. While the model has shown strong performance on single genes, there may be underlying patterns on which it is able to pick up when learning from DNA that belongs to a collection of different genes; hopefully, these could further enhance performance. Under this approach, we want to amalgamate data from various genes, then test the model on data from a single gene that is left out from the training data. We think this will be a good "stress" test for the model, and will allow us to move forward accordingly. See below for a demo method that implements this procedure (and for the rest of the code, check out the [project GitHub](https://github.com/wmccrthy/Max-Lifespan-Project/blob/main/fall_24_training/training_per_gene.py)).
+
+```{python}
+#| eval: false
+#| echo: true
+
+def train_amalgamation_of_genes(train_genes, test_genes):
+# what we could do is go through genes with decent val loss in prior tests 
+# sample random set of k of those genes for training
+# sample one random for testing
+    results_path = training_dir + "per_gene_results_pt6.csv"
+
+    to_sample = []
+    with open(results_path) as read_from:
+        for line in read_from:
+            line = line.split(",")
+            if line[0] == "gene": continue #skip first line
+            avg_val, min_val = line[2:]
+            gene = line[0].strip()
+            avg_val, min_val = int(avg_val), int(min_val)
+            if avg_val < 11 and min_val < 7.5: to_sample.append(gene)
+
+    train_genes = random.sample(to_sample, 10)
+    test_gene = random.split(to_sample, 1)
+    training_inps, training_labels = [], []
+    # iterate thru and combine datasets into single list
+    for gene in train_genes:
+        gene_path = gene_one2one_datasets_path + gene + "_orthologs_trimmed_one2one.csv"
+        gene_inps, gene_labels = prepare4Enformer(gene_path, UNIVERSAL_MAX_LEN)
+        training_inps.extend(gene_inps)
+        training_labels.extend(gene_labels)
+    # shuffle training dataset
+    indices = np.arange(len(training_labels))
+    np.random.shuffle(indices)
+    shuffled_training_inps = [training_inps[i] for i in indices]
+    shuffled_training_labels = [training_labels[i] for i in indices]
+    # create validation set
+    val_gene_path = gene_one2one_datasets_path + 
+                    test_gene[0] +
+                    "_orthologs_trimmed_one2one.csv"
+
+    val_inps, val_labels = prepare4Enformer(val_gene_path, UNIVERSAL_MAX_LEN)
+
+    # call train on the combined data
+    train(
+        shuffled_training_inps,
+        shuffled_training_labels,
+        "gene_amalgamation",
+        -1,
+        UNIVERSAL_MAX_LEN,
+        "_".join(train_genes) + f'_{test_gene[0]}',
+        (val_inps, val_labels)
+    )
+```
+
+Ideally, we can scale this approach to train the model on an amalgamation of data from all our genes before we test it with the outlying species test. With that being said, we must first test the approach on smaller sets of genes and tune the model accordingly. Additionally, we still have some concerns with memory, given how dense an amalgamation of data from *all our genes* would be. As such, iteratively scaling this approach should allow us to simultaneously debug memory issues and tune the model. Stay tuned!
+

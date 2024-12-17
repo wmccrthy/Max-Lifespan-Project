@@ -1,0 +1,38 @@
+==============================================================================================================================================
+CURRENT ISSUES/DEV LOG:
+
+  * got enformer layer to work by passing inputs and target
+  * now there are issues in backward; (these are fixed by unfreezing enformer layer)
+  * attempting training run w just default enformer (currently RUNNING ON ROSETTA13 TMUX tmrw)
+  * our goal is to pull embeddings from the enformer model and pass those thru two of our own linear layers
+    * ways to do this:
+      * Enformer.from_hparams(), where we pass return_only_embeddings = True to model calls
+        * run into the same sequence length != target length error (dims are properly inputted so not sure what prompts this...) 
+        * my hypothesis for this bug is that it is due to padding; even so, there is no seq in current gene that has length = 113, so not sure where that comes from
+      * en.from_pretrained() where we write our own method to pull out the embeddings
+
+    * currently have a run on ROSETTA2 in tmux; got stuff to work by padding all genes to same length (31620) and using target length of 248 (this represents the seq length once passing thru a few convolutional layers)
+      * fails after 1 epoch bc "Disk Quota exceeded"; is there a way we can avoid saving wandb artifacts locally?
+      * quota exceeding in this dir: '/afs/csail.mit.edu/u/w/wmccrthy/.local/share/wandb/artifacts/staging/tmpa5g64rw9'
+      * implement Sean's points:
+        * remove wandb
+        * random split instead of 5 fold cross val
+        * Instead of saving train, val, train label, val label, just shuffle once. Find the threshold. Then feed in the slices to data loader without saving them to a variable
+    
+  * FULL WORKING RUN (unfrozen enformer) CURRENTLY ON ROSETTA2
+  * STARTED SECOND FULL TRAINING RUN ON ROSETTA3 (w/ updated model; frozen enformer, early stopping, modified lr scheduling)
+    * cancelled run and started over on rosetta4... (tag is pt2)
+    * pt2 model is also shite... why? maybe we should remove dropout and run it back
+      * it wud make sense if dropout is hurting performance bc we only apply at final two linear layers; as such, there is not enough computation thereafter in which model can correct for the dropped information
+  * PT3 Run (rosetta4): non-frozen enformer, lr scheduling from 1e-4 to 1e-5, no dropout, early stopping
+  * notes from call w/ Sean:
+    * more finetuning backprop on model
+    * Sean is thinking: 
+      * train model on all genes (not individually, s.t the model learns from each gene)
+      * when constructing validation set for big training, leave out entire genes or half of entire genes, 
+      * could do train (90%), val (5%), and test set (5%) | we can then compare test set results on the single gene training results
+        * construct test set first
+        * can do easy test (construct test set as small random sample from train set)
+        * can do hard test (leave out entire gene as test set)
+        * then ideally, the outlying species test (do 95% train, 5% val)
+        * for each organism in a certain genus: do inference on each gene's samples from that organism

@@ -74,7 +74,7 @@ The focus of this period was to get re-situated with the project and caught up o
 
 Quick EDA Recap:
 
-  * 51 million DNA sequences orthologous to the human genome from 453 different mammalian genomes 
+  * We have 51 million DNA sequences orthologous to the human genome from 453 different mammalian genomes 
   * Added `lifespan` variable to data (according to the species which a sequence was from)
   * Organized data into sets categorized by the gene from which a sequence was extracted
   * For each gene:

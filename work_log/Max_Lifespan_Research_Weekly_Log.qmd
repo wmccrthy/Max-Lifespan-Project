@@ -297,7 +297,7 @@ For this initial training run, we trained on only genes with >=400 species repre
 
 ![Minimum Validation Loss by Gene]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/fall_24_training/per_gene_min_val_loss.png"){height=40% fig-align="center"}
 
-The results above are limited to the "best" performing genes; that is, the genes for which the minimum validation loss was < 10. Given we were only able to train on a sample of our gene datasets, it is encouraging to see that the model learns (relative to our prior results) somewhat well on many of these datasets. In some cases, like on MYBL1, the model exhibits some of the best performance we've seen so far. Given how MYBL1 stands out as the best performing gene in this initial set of results, we will use it to benchmark the performance of other model configurations.
+The results above are limited to the "best" performing genes; that is, the genes for which the minimum validation loss was < 10. Given we were only able to train on a sample of our gene datasets, it is encouraging to see that the model learns (relative to our prior results) somewhat well on many of these datasets. In some cases, like on MYBL1, the model exhibits some of the best performance we've seen so far. Given how MYBL1 stands out as the best performing gene in this initial set of results, we will use it to benchmark the performance of other model configurations as we move forward.
 
 
 **Second Training Run Model Overview (tag: frozen_enformer)**

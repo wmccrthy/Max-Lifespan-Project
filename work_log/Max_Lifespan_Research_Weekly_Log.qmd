@@ -53,9 +53,9 @@ fig-cap-align: center
 
 This semester's research builds on the foundational work conducted during the Spring, detailed in a report you can view [here](https://www.linkedin.com/in/wyatt-mccarthy-134997209/overlay/1718078872726/single-media-viewer/?profileId=ACoAADUBRPgB7ROcf6U3HwwYTJRTWlHd26z5gps). The original study investigated a hypothesis proposed by David Sabitini, suggesting that fundamental components of DNA could influence a species' maximum lifespan. By analyzing orthologous gene sequences across 453 mammalian species, we explored evolutionary conservation and its implications for longevity.
 
-The initial phase of the project involved extensive data cleaning and analysis of DNA sequences from the Zoonomia Project, focusing on conserved orthologs and transcription factor binding sites. Statistical approaches such as chi-square tests and clustering techniques allowed us to identify significant associations between genetic variation and lifespan. These insights informed the development of a predictive modeling framework, which leveraged species-aware DNA embeddings and machine learning architectures like PerceiverIO. However, early results indicated challenges in model generalization, highlighting the need for refined training data and alternative approaches.
+The initial phase of the project involved extensive data cleaning and analysis of DNA sequences from the [Zoonomia Project](https://zoonomiaproject.org/the-data/), focusing on conserved orthologs. Statistical approaches such as chi-square tests and clustering techniques allowed us to identify associations between genetic variation and lifespan. These insights informed the development of a predictive modeling framework, which leveraged species-aware DNA embeddings and machine learning architectures like PerceiverIO. However, early results indicated challenges in model generalization, highlighting the need for refined training data and alternative approaches.
 
-Over the summer, collaborators extended this work by deepening statistical analysis and experimenting with additional model architectures. This semester's efforts aim to refine the data pipeline, address noise in the training datasets, and conduct various modeling experiments.
+Over the summer, collaborators extended this work by deepening statistical analysis and experimenting with additional model architectures. This semester's efforts aim to catch up with summer work, refine the data pipeline, address noise in the training datasets, and conduct various modeling experiments.
 
 This log chronicles the steps undertaken, challenges encountered, and progress made in advancing the project throughout the semester.
 
@@ -114,7 +114,7 @@ gene_sets_proxy_rankings <-
     head(3)
 
 kable(gene_sets_metadata, digits = 1)
-kable(gene_sets_cluster_data, digits = 1)
+kable(gene_sets_cluster_data, digits = 1, col.names = c("gene", "mean lifespan", "std dev", "iqr bounds", "cluster", "cluster mean lifespan", "cluster std dev", "cluster iqr", "cluster iqr bounds", "#points in cluster", "#species in cluster", "modified z-score", "stat sig"), align = 'c')
 kable(gene_sets_proxy_rankings, digits = 3)
 ```
 
@@ -126,7 +126,7 @@ kable(gene_sets_proxy_rankings, digits = 3)
 
 Quick Modeling Recap:
 
-  * The main purpose of the EDA described above was to identify and compile training data; the idea from there was that if we could train a model to accurately predict lifespan when given a DNA sequence from an "outlying" species, we were on to something
+  * The main purpose of the EDA described above was to identify and compile training data; the idea from there was that if we could train a model to accurately predict lifespan when given a DNA sequence from an "outlying" species, this would indicate a promising discovery
     * in this context, by "outlying" species we mean a species whose lifespan is uncharacteristically large relative to genetically similar species
     * to identify such species, we performed further analysis, briefly shown in the tables and plots below
 ```{r}
@@ -255,10 +255,9 @@ def create_one2one_gene_sets():
     # create new file that outputs stats per gene 
     # (csv of format [gene | num_entries | num_species])
     # we can use this file to generate histograms thereafter
-    
+    metadata_path = "EDA/regulatory_one2one_sets_metadata.csv"
     with open(
-      "/data/rbg/users/wmccrthy/chemistry/Everything/ +
-      "EDA/regulatory_one2one_sets_metadata.csv", 
+      "/data/rbg/users/wmccrthy/chemistry/Everything/" + metadata_path, 
       "w") as write_to:
         writer = csv.writer(write_to)
         writer.writerow(["gene", "# seqs", "# species"])
@@ -317,7 +316,7 @@ The key difference in this second run is that we froze the enformer layer and ad
 
 ![CERS3 Performance Comparison]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/fall_24_training/loss_plots/CERS3_loss_frozen_enformer_vs_default.png"){height=40% fig-align="center"}
 
-Given how poorly the model was performing in it's initial training, we stopped the run before it could train on what is meant to be our benchmark gene, MYBL1. In any case, back to the drawing board...
+Given how poorly the model was performing in its initial training, we stopped the run before it could train on what is meant to be our benchmark gene, MYBL1. In any case, back to the drawing board...
 
 
 **Third Training Run Model Overview (tag: pt2)**
@@ -513,17 +512,17 @@ Summatively:
   * **`pt6`** is the best-performing model based on its lowest minimum validation loss.
   * **`pt2`** struggles significantly with stability, as evidenced by its high average loss.
   * Models like **`pt6`**, **`pt4`**, **`pt3`**, and **`results`/`default`** provide a strong balance between low average loss and minimum loss, making them reliable options for consistent validation performance.
-Given that **`pt6`** essentially matches the best average validation loss and has the lowest minimum validation loss, this is the configuration we will use for the time being as we proceed.
+Given that **`pt6`** essentially matches the best average validation loss and has the lowest minimum validation loss, this is the configuration we will use for the time being.
 
 # December 1st - Next Steps
 
 As we approach the semester's end, it is time to evaluate potential next steps.
 
-Recall, the longer term objective is to perform what we've denoted as the "outlying species test". As touched on earlier in this log, this test will involve evaluating the model on DNA from a species whose lifespan is uncharacteristically high compared to their genus/family (taxonomic classifications that indicate genetic similarity). If our model is able to predict somewhat accurately under these conditions, we are hopefully onto something.
+Recall, the longer term objective is to perform what we've denoted as the "outlying species test". As touched on earlier in this log, this test will involve evaluating the model on DNA from a species whose lifespan is uncharacteristically high compared to their genus/family (taxonomic classifications that indicate genetic similarity). If our model is able to predict somewhat accurately under these conditions, we are hopefully onto something promising.
 
-In any case, to arrive at this goal, we want to continue to tune and test the model. Recall that thus far, most of our training has been on DNA from individual genes. As we've seen, the strongest model is able to perform somewhat well, achieving a minimum validation loss <6, for a plethora of these genes. To move towards our goal of the outlying species test, however, we now want to train the model on DNA from a collection of genes rather than individual genes. While the model has shown strong performance on single genes, there may be underlying patterns which it is able to pick up when learning from DNA that belongs to a collection of different genes; hopefully, these could further enhance performance. 
+In any case, to arrive at this goal, we want to continue to tune and test the model. Recall that thus far, most of our training has been on DNA from individual genes. As we've seen, the strongest model is able to perform somewhat well, achieving a minimum validation loss <6, for a plethora of these genes. To move towards our goal of the outlying species test, however, we now want to train the model on DNA from a collection of genes rather than individual genes. While the model has shown strong performance on single genes, there may be underlying patterns which it is able to pick up on when training on DNA from a collection of different genes; hopefully, these patterns could further enhance performance.
 
-Under this approach, we want to amalgamate data from various genes, then test the model on data from a single gene that is left out from the training data. We think this will be a good "stress" test for the model, and will allow us to move forward accordingly. See below for a demo method that implements this procedure (and for the rest of the code, check out the [project GitHub](https://github.com/wmccrthy/Max-Lifespan-Project/blob/main/fall_24_training/training_per_gene.py)).
+Under this approach, we want to train on an amalgamation of data from various genes, then test the model on data from a single gene that is left out from the training data. We think this will be a good "stress" test for the model, and will allow us to move forward accordingly. See below for a demo method that implements this procedure (and for the rest of the code, check out the [project GitHub](https://github.com/wmccrthy/Max-Lifespan-Project/blob/main/fall_24_training/training_per_gene.py)).
 
 ```{python}
 #| eval: false
@@ -580,5 +579,30 @@ def train_amalgamation_of_genes(train_genes, test_genes):
     )
 ```
 
-Ideally, we can scale this approach to train the model on an amalgamation of data from all our genes before we test it with the outlying species test. With that being said, we must first test the approach on smaller sets of genes and tune the model accordingly. Additionally, we still have some concerns with memory, given how dense a of data from *all our genes* would be. As such, iteratively scaling this approach should allow us to simultaneously debug memory issues and tune the model. Stay tuned!
+Ideally, we can scale this approach to train the model on an amalgamation of data from *all our genes* before we test it with the outlying species test. With that being said, we must first test the approach on smaller sets of genes and tune the model accordingly. Additionally, we still have some concerns with memory, given how dense a of data from *all our genes* would be. As such, we hope that iteratively scaling this approach will allow us to simultaneously debug memory issues and tune the model. Stay tuned!
+
+\newpage
+
+### References {.unnumbered}
+
+- **Zoonomia Project Data**  
+  *High-quality DNA sequences and annotations for comparative genomics.*  
+  [Access Data Here](https://zoonomiaproject.org/the-data/)
+
+- **Spring 2024 Lifespan Research Report**  
+  McCarthy, W.  
+  [Read Report Here](https://www.linkedin.com/in/wyatt-mccarthy-134997209/overlay/1718078872726/single-media-viewer/?profileId=ACoAADUBRPgB7ROcf6U3HwwYTJRTWlHd26z5gps)
+
+- **Enformer Model Documentation**  
+  LucidRains: *Enformer - Pytorch Implementation of the Transformer-based Genome Modeling Approach.*  
+  [GitHub Repository](https://github.com/lucidrains/enformer-pytorch/tree/main)
+
+- **TOGA Ortholog Annotation**  
+  Science.org: *Alignment and Annotation of Orthologous Genes Using TOGA.*  
+  [Research Article](https://www.science.org/doi/10.1126/science.abn3107)
+
+- **Max Lifespan Research Project GitHub**  
+  McCarthy, W.  
+  [Project Repository](https://github.com/wmccrthy/Max-Lifespan-Project)
+
 

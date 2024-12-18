@@ -114,7 +114,7 @@ gene_sets_proxy_rankings <-
     head(3)
 
 kable(gene_sets_metadata, digits = 1)
-kable(gene_sets_cluster_data, digits = 1, col.names = c("gene", "mean lifespan", "std dev", "iqr bounds", "cluster", "cluster mean lifespan", "cluster std dev", "cluster iqr", "cluster iqr bounds", "#points in cluster", "#species in cluster", "modified z-score", "stat sig"), align = 'c')
+kable(gene_sets_cluster_data, digits = 0, col.names = c("gene", "avg lifespan", "std dev", "iqr bounds", "cluster", "cluster mean lifespan", "cluster std dev", "cluster iqr", "cluster iqr bounds", "#data in cluster", "#species in cluster", "modified z-score", "stat sig"), align = 'c')
 kable(gene_sets_proxy_rankings, digits = 3)
 ```
 

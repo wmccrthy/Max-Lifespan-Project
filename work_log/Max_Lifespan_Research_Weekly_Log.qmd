@@ -49,7 +49,7 @@ fig-cap-location: bottom
 fig-cap-align: center
 ---
 
-## Introduction  
+### Introduction {.unnumbered}
 
 This semester's research builds on the foundational work conducted during the Spring, detailed in a report you can view [here](https://www.linkedin.com/in/wyatt-mccarthy-134997209/overlay/1718078872726/single-media-viewer/?profileId=ACoAADUBRPgB7ROcf6U3HwwYTJRTWlHd26z5gps). The original study investigated a hypothesis proposed by David Sabitini, suggesting that fundamental components of DNA could influence a species' maximum lifespan. By analyzing orthologous gene sequences across 453 mammalian species, we explored evolutionary conservation and its implications for longevity.
 

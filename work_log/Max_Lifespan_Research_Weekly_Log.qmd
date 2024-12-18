@@ -53,7 +53,7 @@ fig-cap-align: center
 
 This semester's research builds on the foundational work conducted during the Spring, detailed in a report you can view [here](https://www.linkedin.com/in/wyatt-mccarthy-134997209/overlay/1718078872726/single-media-viewer/?profileId=ACoAADUBRPgB7ROcf6U3HwwYTJRTWlHd26z5gps). The original study investigated a hypothesis proposed by David Sabitini, suggesting that fundamental components of DNA could influence a species' maximum lifespan. By analyzing orthologous gene sequences across 453 mammalian species, we explored evolutionary conservation and its implications for longevity.
 
-The initial phase of the project involved extensive data cleaning and analysis of DNA sequences from the Zoonomia Project, focusing on conserved orthologs and transcription factor binding sites. Statistical approaches such as chi-square tests and clustering techniques allowed us to identify significant correlations between genetic variation and lifespan. These insights informed the development of a predictive modeling framework, which leveraged species-aware DNA embeddings and machine learning architectures like PerceiverIO. However, early results indicated challenges in model generalization, highlighting the need for refined training data and alternative approaches.
+The initial phase of the project involved extensive data cleaning and analysis of DNA sequences from the Zoonomia Project, focusing on conserved orthologs and transcription factor binding sites. Statistical approaches such as chi-square tests and clustering techniques allowed us to identify significant associations between genetic variation and lifespan. These insights informed the development of a predictive modeling framework, which leveraged species-aware DNA embeddings and machine learning architectures like PerceiverIO. However, early results indicated challenges in model generalization, highlighting the need for refined training data and alternative approaches.
 
 Over the summer, collaborators extended this work by deepening statistical analysis and experimenting with additional model architectures. This semester's efforts aim to refine the data pipeline, address noise in the training datasets, and conduct various modeling experiments.
 
@@ -180,7 +180,7 @@ kable(orders_of_interest, digits = 2)
 
 ![Enformer Training Per-Gene Results]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/per_gene_results.png"){height=30% fig-align="center"}
 
-Given our failures to analyze larger quantities of data, we had to re-evaluate our approach to training.
+Ultimately, the Enformer model has shown the best performance, so we will use it moving forward. Given our failures to analyze larger quantities of data, however, we have to re-evaluate our data pipeline and approach to training.
 
 # October 1st - October 25th
 

@@ -49,6 +49,16 @@ fig-cap-location: bottom
 fig-cap-align: center
 ---
 
+## Introduction  
+
+This semester's research builds on the foundational work conducted during the Spring, detailed in a report you can view [here](https://www.linkedin.com/in/wyatt-mccarthy-134997209/overlay/1718078872726/single-media-viewer/?profileId=ACoAADUBRPgB7ROcf6U3HwwYTJRTWlHd26z5gps). The original study investigated a hypothesis proposed by David Sabitini, suggesting that fundamental components of DNA could influence a species' maximum lifespan. By analyzing orthologous gene sequences across 453 mammalian species, we explored evolutionary conservation and its implications for longevity.
+
+The initial phase of the project involved extensive data cleaning and analysis of DNA sequences from the Zoonomia Project, focusing on conserved orthologs and transcription factor binding sites. Statistical approaches such as chi-square tests and clustering techniques allowed us to identify significant correlations between genetic variation and lifespan. These insights informed the development of a predictive modeling framework, which leveraged species-aware DNA embeddings and machine learning architectures like PerceiverIO. However, early results indicated challenges in model generalization, highlighting the need for refined training data and alternative approaches.
+
+Over the summer, collaborators extended this work by deepening statistical analysis and experimenting with additional model architectures. This semester's efforts aim to refine the data pipeline, address noise in the training datasets, and conduct various modeling experiments.
+
+This log chronicles the steps undertaken, challenges encountered, and progress made in advancing the project throughout the semester.
+
 ```{r}
 #| include: false
 
@@ -60,7 +70,7 @@ library(readr)
 ```
 
 # September 16th - September 30th
-The focus of this period was to get re-situated with the project and caught up on the work that was done over the summer. For a quick recap, when I finished my research in the spring, we had just gotten to modeling, following a lengthy EDA period where we identified potentially "good" and "bad" data. For more info, see report (link to PDF). 
+The focus of this period was to get re-situated with the project and caught up on the work that was done over the summer. For a quick recap, when I finished my research in the spring, we had just gotten to modeling, following a lengthy EDA period where we identified potentially "good" and "bad" data.
 
 Quick EDA Recap:
 
@@ -120,7 +130,7 @@ Quick Modeling Recap:
     * in this context, by "outlying" species we mean a species whose lifespan is uncharacteristically large relative to genetically similar species
     * to identify such species, we performed further analysis, briefly shown in the tables and plots below
 ```{r}
-8
+#| echo: false
 
 # show table w/ families/genera of interest
 setwd("/Users/wyattmccarthy/repos/Max-Lifespan-Project/EDA/")
@@ -247,7 +257,8 @@ def create_one2one_gene_sets():
     # we can use this file to generate histograms thereafter
     
     with open(
-      "/data/rbg/users/wmccrthy/chemistry/Everything/EDA/regulatory_one2one_sets_metadata.csv", 
+      "/data/rbg/users/wmccrthy/chemistry/Everything/ +
+      "EDA/regulatory_one2one_sets_metadata.csv", 
       "w") as write_to:
         writer = csv.writer(write_to)
         writer.writerow(["gene", "# seqs", "# species"])
@@ -505,7 +516,7 @@ Summatively:
   * Models like **`pt6`**, **`pt4`**, **`pt3`**, and **`results`/`default`** provide a strong balance between low average loss and minimum loss, making them reliable options for consistent validation performance.
 Given that **`pt6`** essentially matches the best average validation loss and has the lowest minimum validation loss, this is the configuration we will use for the time being as we proceed.
 
-#December 1st - Next Steps
+# December 1st - Next Steps
 
 As we approach the semester's end, it is time to evaluate potential next steps.
 
@@ -540,7 +551,9 @@ def train_amalgamation_of_genes(train_genes, test_genes):
     training_inps, training_labels = [], []
     # iterate thru and combine datasets into single list
     for gene in train_genes:
-        gene_path = gene_one2one_datasets_path + gene + "_orthologs_trimmed_one2one.csv"
+        gene_path = gene_one2one_datasets_path + 
+                    gene + 
+                    "_orthologs_trimmed_one2one.csv"
         gene_inps, gene_labels = prepare4Enformer(gene_path, UNIVERSAL_MAX_LEN)
         training_inps.extend(gene_inps)
         training_labels.extend(gene_labels)
@@ -568,5 +581,5 @@ def train_amalgamation_of_genes(train_genes, test_genes):
     )
 ```
 
-Ideally, we can scale this approach to train the model on an amalgamation of data from all our genes before we test it with the outlying species test. With that being said, we must first test the approach on smaller sets of genes and tune the model accordingly. Additionally, we still have some concerns with memory, given how dense a collection of data from *all our genes* would be. As such, iteratively scaling this approach should allow us to simultaneously debug memory issues and tune the model. Stay tuned!
+Ideally, we can scale this approach to train the model on an amalgamation of data from all our genes before we test it with the outlying species test. With that being said, we must first test the approach on smaller sets of genes and tune the model accordingly. Additionally, we still have some concerns with memory, given how dense a of data from *all our genes* would be. As such, iteratively scaling this approach should allow us to simultaneously debug memory issues and tune the model. Stay tuned!
 

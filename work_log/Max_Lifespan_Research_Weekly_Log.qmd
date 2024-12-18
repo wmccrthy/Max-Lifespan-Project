@@ -491,7 +491,6 @@ Some Key Observations
 
 1. **`pt2`**:
    - Exhibits the **highest average validation loss** at **39.27**, suggesting poor overall performance and instability.
-   - However, its minimum loss of **12.46** indicates occasional good results.
 
 2. **`pt6`**:
    - Achieves the **lowest minimum validation loss** of **5.58**, making it the best-performing model for minimum error.

@@ -60,7 +60,7 @@ library(readr)
 ```
 
 # September 16th - September 30th
-Focus of this period was to get re-situated with the project and caught up on the work that was done over the summer. For a quick recap, when I finished my research in the spring, we had just gotten to modeling, following a lengthy EDA period where we identified potentially "good" and "bad" data. For more info, see report (link to PDF). 
+The focus of this period was to get re-situated with the project and caught up on the work that was done over the summer. For a quick recap, when I finished my research in the spring, we had just gotten to modeling, following a lengthy EDA period where we identified potentially "good" and "bad" data. For more info, see report (link to PDF). 
 
 Quick EDA Recap:
 
@@ -174,7 +174,7 @@ Given our failures to analyze larger quantities of data, we had to re-evaluate o
 
 # October 1st - October 25th
 
-Focus of this period was to retrace our data collection (from months and months ago) to ensure it's validity, recompile and trim data where necessary and devise a modeling approach in which we could effectively train on these smaller, trimmed datasets. Our first task was to trim our cumulative data. Given the memory issues we encountered earlier, as well as the performance issues incurred by pre-processing extremely long DNA sequences before training a model, we wanted to trim data with outlying sequence lengths. To define a valid range of sequence lengths, we collected metrics on the distribution of sequence lengths across all gene data:
+The focus of this period was to retrace our data collection (from months and months ago) to ensure it's validity, recompile and trim data where necessary and devise a modeling approach in which we could effectively train on these smaller, trimmed datasets. Our first task was to trim our cumulative data. Given the memory issues we encountered earlier, as well as the performance issues incurred by pre-processing extremely long DNA sequences before training a model, we wanted to trim data with outlying sequence lengths. To define a valid range of sequence lengths, we collected metrics on the distribution of sequence lengths across all gene data:
 
 ![Sequence Length Distribution]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/untrimmed_seq_lens.png"){height=30% fig-align="center"}
 ![Sequence Length Distribution(log10 scale)]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/work_log/imgs/untrimmed_seq_lens_log10.png"){height=30% fig-align="center"}
@@ -269,7 +269,7 @@ Given the distribution of species in each gene dataset, we decided it makes sens
 
 # October 28th - December 1st
 
-Focus of this period is to implement, debug, and run scripts to train Enformer model on each of our gene datasets, evaluate results, and move forward accordingly.
+The focus of this period was to implement, debug, and run scripts to train Enformer model on each of our gene datasets, evaluate results, and move forward accordingly.
 
 
 **First Training Run Model Overview (tag: default)**
@@ -404,7 +404,7 @@ class MLP(nn.Module):
   * 10 epochs per gene
   * batch size = 1
 
-This model configuration exhibits generally similar performance in terms of best validation loss/training loss as the default and pt3 variations; notably however, this variant performed well on different gene. That is, the best performing genes with this model had similarly low loss as the best performing genes with other configurations (pt3, default), but the two sets of genes were very different. An example of this is MYBL1, which performed poorly on this run.
+This model configuration exhibits generally similar performance in terms of best validation loss/training loss as the default and pt3 variations; notably however, this variant performed well on different genes. That is, the best performing genes with this model had similarly low loss as the best performing genes with other configurations (pt3, default), but the two sets of genes were very different. An example of this is MYBL1, which performed poorly on this run.
 
 ![SIRT5 Performance Comparison]("/Users/wyattmccarthy/repos/Max-Lifespan-Project/fall_24_training/loss_plots/SIRT5_loss_pt4_vs_default.png"){height=40% fig-align="center"}
 
@@ -423,17 +423,23 @@ This model configuration exhibits generally similar performance in terms of best
   * 10 epochs per gene
   * batch size = 1
 
-Model performs horribly! Seems that any time we using learning rate >= 1e-3, the model does really poorly. It is not worth comparing line plots given how poor the results were, so please see the top 3 performing genes' stats below for context. 
+The model performs very poorly! Seems that any time we using learning rate >= 1e-3, the model's learning suffers. It is not displaying line plots of gene performance given how poor the results were, so please see the top 3 performing genes' stats below for context.
 ```{r}
 #| echo: false
 #| eval: true
+#| warning: false
+#| message: false
 
+
+library(janitor)
 setwd("/Users/wyattmccarthy/repos/Max-Lifespan-Project/fall_24_training/")
 
 pt5_results <-
     read_csv("loss_tables/per_gene_results_pt5.csv",
         show_col_types = FALSE
     ) |>
+    clean_names() |>
+    arrange(min_val_loss) |>
     head(3)
 
 kable(pt5_results, digits = 2)
@@ -499,13 +505,15 @@ Summatively:
   * Models like **`pt6`**, **`pt4`**, **`pt3`**, and **`results`/`default`** provide a strong balance between low average loss and minimum loss, making them reliable options for consistent validation performance.
 Given that **`pt6`** essentially matches the best average validation loss and has the lowest minimum validation loss, this is the configuration we will use for the time being as we proceed.
 
-## December 1st - Next Steps
+#December 1st - Next Steps
 
 As we approach the semester's end, it is time to evaluate potential next steps.
 
-Recall, the longer term objective is to perform what we've denoted as the "outlying species test". As touched on earlier in this log, this test will involve evaluating the model on DNA from a species whose lifespan is uncharacteristically high compared to their genus/family (taxonomic classifications that indicate genetic similarity). If our model is able to predict somewhat accurately under these conditions, chances are we are on to something. Now what that something is, is a whole nother question, but that is for the biologists we collaborate with to evaluate.
+Recall, the longer term objective is to perform what we've denoted as the "outlying species test". As touched on earlier in this log, this test will involve evaluating the model on DNA from a species whose lifespan is uncharacteristically high compared to their genus/family (taxonomic classifications that indicate genetic similarity). If our model is able to predict somewhat accurately under these conditions, we are hopefully onto something.
 
-In any case, to arrive at this goal, we want to continue to tune and test the model. Recall that thus far, most of our training has been on DNA from individual genes. As we've seen, the model is able to perform somewhat well, achieving a minimum validation loss <6, for a plethora of these genes. To move towards our goal of the outlying species test, however, we now want to train the model on DNA from a collection of genes rather than individual genes. While the model has shown strong performance on single genes, there may be underlying patterns on which it is able to pick up when learning from DNA that belongs to a collection of different genes; hopefully, these could further enhance performance. Under this approach, we want to amalgamate data from various genes, then test the model on data from a single gene that is left out from the training data. We think this will be a good "stress" test for the model, and will allow us to move forward accordingly. See below for a demo method that implements this procedure (and for the rest of the code, check out the [project GitHub](https://github.com/wmccrthy/Max-Lifespan-Project/blob/main/fall_24_training/training_per_gene.py)).
+In any case, to arrive at this goal, we want to continue to tune and test the model. Recall that thus far, most of our training has been on DNA from individual genes. As we've seen, the strongest model is able to perform somewhat well, achieving a minimum validation loss <6, for a plethora of these genes. To move towards our goal of the outlying species test, however, we now want to train the model on DNA from a collection of genes rather than individual genes. While the model has shown strong performance on single genes, there may be underlying patterns which it is able to pick up when learning from DNA that belongs to a collection of different genes; hopefully, these could further enhance performance. 
+
+Under this approach, we want to amalgamate data from various genes, then test the model on data from a single gene that is left out from the training data. We think this will be a good "stress" test for the model, and will allow us to move forward accordingly. See below for a demo method that implements this procedure (and for the rest of the code, check out the [project GitHub](https://github.com/wmccrthy/Max-Lifespan-Project/blob/main/fall_24_training/training_per_gene.py)).
 
 ```{python}
 #| eval: false
@@ -560,5 +568,5 @@ def train_amalgamation_of_genes(train_genes, test_genes):
     )
 ```
 
-Ideally, we can scale this approach to train the model on an amalgamation of data from all our genes before we test it with the outlying species test. With that being said, we must first test the approach on smaller sets of genes and tune the model accordingly. Additionally, we still have some concerns with memory, given how dense an amalgamation of data from *all our genes* would be. As such, iteratively scaling this approach should allow us to simultaneously debug memory issues and tune the model. Stay tuned!
+Ideally, we can scale this approach to train the model on an amalgamation of data from all our genes before we test it with the outlying species test. With that being said, we must first test the approach on smaller sets of genes and tune the model accordingly. Additionally, we still have some concerns with memory, given how dense a collection of data from *all our genes* would be. As such, iteratively scaling this approach should allow us to simultaneously debug memory issues and tune the model. Stay tuned!
 
